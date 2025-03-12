@@ -1,0 +1,69 @@
+---
+# This file is used to configure the project metadata
+fullname: <Project Name>
+# NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
+shortname: <Project Short Name> # NOTE: This is the library name that other projects will use to depend on/import from this project
+opam_name: <opam-name> # i.e. coq-Base64
+synopsis: "<Project Synopsis>"
+description: "<Project Description>"
+authors:
+  - name: "<Author Name>"
+    email: "<Author Email>"
+opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
+
+######################################################
+# NOTE: Optional Extra Info
+######################################################
+# categories:
+#   - name: "<Category>"
+
+# keywords:
+#   - name: "<Keyword1>"
+#   - name: "<Keyword2>"
+
+######################################################
+# NOTE: Stuff below this line you should not need to change
+# other than on occassion the `config options`
+######################################################
+# NOTE: check out https://github.com/coq-community/templates/blob/master/ref.yml for more possible values
+
+branch: main
+organization: ku-sldg
+
+# Config Options
+sldg_dev_pkgs_needed: true
+community: false # By default projects are not part of coq-community
+coqdoc: true # By default we want coqdoc
+submodule: false # By default we don't want submodules
+dune: true # By default we want dune builds
+ocaml_plugin: false # By default we don't assume plugins to use ocaml code
+# date: # by default we arent setting a date
+
+# CI services - we only want GH Actions by default
+# NOTE: You should not need to change these usually!
+travis: false
+action: true
+circleci: false
+nix: false
+ci_test_dependants: false
+ci_extra_dev: false
+ci_cron_schedule: 0 0 * * 0 # Weekly at midnight sunday
+tested_coq_opam_versions:
+  - version: "8.20"
+  - version: "dev"
+
+## UNKNOWN: action_appendix:
+
+# Extra Metadata
+# doi:
+# chat: # if we ever have a chat room?
+license:
+  - fullname: Creative Commons Attribution Share Alike 4.0 International
+    identifier: CC-BY-SA-4.0
+    file: LICENSE
+supported_coq_versions:
+  - text: "8.20 later"
+    opam: '{ >= "8.20~" }'
+supported_ocaml_versions:
+  - text: "4.12 or later"
+    opam: '{ >= "4.12~" }'
