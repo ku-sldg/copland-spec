@@ -36,6 +36,7 @@ The easiest way to install the latest released version of Copland Specification
 is via [OPAM](https://opam.ocaml.org/doc/Install.html):
 
 ```shell
+opam repo add -a --set-default ku-sldg/opam-repo https://github.com/ku-sldg/opam-repo.git
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install coq-copland-spec
 ```

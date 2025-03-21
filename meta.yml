@@ -14,6 +14,7 @@ authors:
     email: "30wthomas@ku.edu"
   - name: "KU-SLDG Lab"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
+opam-file-version: "0.1.0"
 
 ######################################################
 # NOTE: Optional Extra Info
@@ -59,6 +60,11 @@ dependencies:
       version: '{ >= "0.13.0" }'
       lib_name: "ExtLib"
 
+ci_extra_repos:
+  - description: "KU-SLDG Packages"
+    name: "ku-sldg/opam-repo"
+    url: "https://github.com/ku-sldg/opam-repo.git"
+
 ######################################################
 # NOTE: Stuff below this line you should not need to change
 # other than on occassion the `config options`
@@ -69,7 +75,6 @@ branch: main
 organization: ku-sldg
 
 # Config Options
-sldg_dev_pkgs_needed: true
 community: false # By default projects are not part of coq-community
 coqdoc: false # By default we want coqdoc
 submodule: false # By default we don't want submodules

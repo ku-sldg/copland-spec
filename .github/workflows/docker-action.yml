@@ -29,6 +29,7 @@ jobs:
           custom_image: ${{ matrix.image }}
           before_install: |
             startGroup "Setup and print opam config"
+              opam repo -a --set-default add ku-sldg/opam-repo https://github.com/ku-sldg/opam-repo.git
               opam config list; opam repo list; opam list
             endGroup
 
