@@ -46,8 +46,8 @@ opam-file-version: "0.1.0"
 dependencies:
   - description: "[Rocq-Candy](https://github.com/ku-sldg/RocqCandy)"
     opam:
-      name: Rocq-Candy
-      version: '{ >= "0.2.0" }'
+      name: rocq-candy
+      version: '{ >= "0.2.1" }'
       lib_name: "RocqCandy"
   - description: "[Coq-JSON](https://github.com/liyishuai/coq-json)"
     opam:
