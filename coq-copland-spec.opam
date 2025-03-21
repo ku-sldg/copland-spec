@@ -20,7 +20,7 @@ depends: [
   "dune" {>= "3.17"}
   "coq" 
   "Rocq-Candy" { >= "0.2.0" }
-  "coq-json" { >= "0.3.0" }
+  "coq-json" { >= "0.2.0" }
   "coq-ext-lib" { >= "0.13.0" }
 ]
 
