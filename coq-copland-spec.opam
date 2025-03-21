@@ -1,0 +1,34 @@
+# This file was generated from `meta.yml`, please do not edit manually.
+# Follow the instructions on https://github.com/coq-community/templates to regenerate.
+
+opam-version: "2.0"
+maintainer: "30wthomas@ku.edu"
+version: "dev"
+
+homepage: "https://github.com/ku-sldg/copland-spec"
+dev-repo: "git+https://github.com/ku-sldg/copland-spec.git"
+bug-reports: "https://github.com/ku-sldg/copland-spec/issues"
+license: "CC-BY-SA-4.0"
+
+synopsis: "Specification for the Copland DSL for Attestation Protocols"
+description: """
+Specification for the Copland DSL for Attestation Protocols"""
+
+build: ["dune" "build" "-p" name "-j" jobs]
+depends: [
+  "ocaml" { >= "4.12~" }
+  "dune" {>= "3.17"}
+  "coq" 
+  "Rocq-Candy" { >= "0.2.0" }
+  "coq-json" { >= "0.3.0" }
+  "coq-ext-lib" { >= "0.13.0" }
+]
+
+tags: [
+  "logpath:copland-spec"
+]
+authors: [
+  "Adam Petz <ampetz@ku.edu>"
+  "Will Thomas <30wthomas@ku.edu>"
+  "KU-SLDG Lab"
+]

@@ -1,14 +1,18 @@
 ---
 # This file is used to configure the project metadata
-fullname: <Project Name>
+fullname: Copland Specification
 # NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
-shortname: <Project Short Name> # NOTE: This is the library name that other projects will use to depend on/import from this project
-opam_name: <opam-name> # i.e. coq-Base64
-synopsis: "<Project Synopsis>"
-description: "<Project Description>"
+shortname: copland-spec
+lib_name: CoplandSpec # NOTE: This is the library name that other projects will use to depend on/import from this project
+opam_name: coq-copland-spec # i.e. coq-Base64
+synopsis: "Specification for the Copland DSL for Attestation Protocols"
+description: "Specification for the Copland DSL for Attestation Protocols"
 authors:
-  - name: "<Author Name>"
-    email: "<Author Email>"
+  - name: "Adam Petz"
+    email: "ampetz@ku.edu"
+  - name: "Will Thomas"
+    email: "30wthomas@ku.edu"
+  - name: "KU-SLDG Lab"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
 
 ######################################################
@@ -20,6 +24,40 @@ opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will
 # keywords:
 #   - name: "<Keyword1>"
 #   - name: "<Keyword2>"
+
+# - dependencies:
+#     type: list
+#     item_fields:
+#       - description:
+#           required: true
+#           used:
+#             - README.md
+#       - opam:
+#           required: false
+#           fields:
+#             - name:
+#                 required: true
+#             - version
+#           used:
+#             - coq.opam
+#             - extracted.opam
+
+dependencies:
+  - description: "[Rocq-Candy](https://github.com/ku-sldg/RocqCandy)"
+    opam:
+      name: Rocq-Candy
+      version: '{ >= "0.2.0" }'
+      lib_name: "RocqCandy"
+  - description: "[Coq-JSON](https://github.com/liyishuai/coq-json)"
+    opam:
+      name: coq-json
+      version: '{ >= "0.2.0" }'
+      lib_name: JSON
+  - description: "[ExtLib](https://github.com/coq-community/coq-ext-lib)"
+    opam:
+      name: coq-ext-lib
+      version: '{ >= "0.13.0" }'
+      lib_name: "ExtLib"
 
 ######################################################
 # NOTE: Stuff below this line you should not need to change
@@ -33,7 +71,7 @@ organization: ku-sldg
 # Config Options
 sldg_dev_pkgs_needed: true
 community: false # By default projects are not part of coq-community
-coqdoc: true # By default we want coqdoc
+coqdoc: false # By default we want coqdoc
 submodule: false # By default we don't want submodules
 dune: true # By default we want dune builds
 ocaml_plugin: false # By default we don't assume plugins to use ocaml code
@@ -50,7 +88,6 @@ ci_extra_dev: false
 ci_cron_schedule: 0 0 * * 0 # Weekly at midnight sunday
 tested_coq_opam_versions:
   - version: "8.20"
-  - version: "dev"
 
 ## UNKNOWN: action_appendix:
 

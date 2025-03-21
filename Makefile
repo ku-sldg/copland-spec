@@ -34,6 +34,6 @@ meta:
 	$$TMP/generate.sh
 
 publish%:
-  opam publish --packages-directory=released/packaged --repo=ku-sldg-repo 
+	opam publish --packages-directory=released/packaged --repo=ku-sldg-repo 
 
 .PHONY:	all meta
