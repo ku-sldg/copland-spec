@@ -14,7 +14,7 @@ authors:
     email: "30wthomas@ku.edu"
   - name: "KU-SLDG Lab"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
-opam-file-version: "0.1.0"
+opam-file-version: "0.1.1"
 
 ######################################################
 # NOTE: Optional Extra Info
@@ -47,7 +47,7 @@ dependencies:
   - description: "[Rocq-Candy](https://github.com/ku-sldg/RocqCandy)"
     opam:
       name: rocq-candy
-      version: '{ >= "0.2.1" }'
+      version: '{ >= "0.2.2" }'
       lib_name: "RocqCandy"
   - description: "[Coq-JSON](https://github.com/liyishuai/coq-json)"
     opam:

@@ -7,3 +7,4 @@
  (theories RocqCandy JSON ExtLib)
  
  (synopsis "Specification for the Copland DSL for Attestation Protocols"))
+
