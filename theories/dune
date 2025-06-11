@@ -4,7 +4,5 @@
 (coq.theory
  (name CoplandSpec)
  (package coq-copland-spec)
- (theories RocqCandy JSON ExtLib)
- 
+ (theories RocqCandy JSON ExtLib Stdlib Ltac2)
  (synopsis "Specification for the Copland DSL for Attestation Protocols"))
-

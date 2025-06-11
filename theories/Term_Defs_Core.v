@@ -16,9 +16,11 @@ This proof script is free software: you can redistribute it and/or
 modify it under the terms of the BSD License as published by the
 University of California.  See license.txt for details. *)
 
-From CoplandSpec Require Export BS ID_Type ErrorMessages.
 
 From JSON Require Export JSON.
+From CoplandSpec Require Export BS ID_Type ErrorMessages.
+From RocqCandy Require Import ResultMonad Maps.
+Import ResultNotation.
 
 (** * Terms and EvidenceT *)
 
@@ -36,7 +38,7 @@ Definition Event_ID: Set := nat.
           (defined and interpreted per-scenario/implementaiton).
 *)
 Definition ASP_ID: Set := ID_Type.
-Definition ASP_Compat_MapT := FMap ASP_ID ASP_ID.
+Definition ASP_Compat_MapT := Map ASP_ID ASP_ID.
 Definition ASP_ARGS := json. (* Map string string. *)
 
 Definition TARG_ID: Set := ID_Type.
@@ -119,7 +121,7 @@ Inductive ASP :=
 | APPR : ASP
 | ENC: Plc -> ASP.
 
-Definition ASP_Type_Env := FMap ASP_ID EvSig.
+Definition ASP_Type_Env := Map ASP_ID EvSig.
 
 Record GlobalContext := {
   asp_types: ASP_Type_Env;
@@ -144,8 +146,6 @@ Inductive Term :=
 | bseq: Split -> Term -> Term -> Term
 | bpar: Split -> Term -> Term -> Term.
 
-Open Scope string_scope.
-
 Definition EvidenceT_depth : EvidenceT -> nat :=
   fix F e :=
   match e with
@@ -163,20 +163,20 @@ Inductive EvTrails :=
 | Trail_LEFT  : EvTrails
 | Trail_RIGHT : EvTrails.
 
-Definition apply_to_evidence_below {A} (G : GlobalContext) (f : EvidenceT -> A)
-    : list EvTrails -> EvidenceT -> string + A :=
+Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) (f : EvidenceT -> A)
+    : list EvTrails -> EvidenceT -> Result A string :=
   fix F trails e :=
   match trails with
   | nil => (* no further trail to follow! *)
-    ret (f e)
+    res (f e)
   | trail :: trails' =>
     match e with
-    | mt_evt => raise err_str_no_evidence_below
-    | nonce_evt _ => raise err_str_no_evidence_below
+    | mt_evt => err err_str_no_evidence_below
+    | nonce_evt _ => err err_str_no_evidence_below
 
     | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
       match (lookup top_id (asp_types G)) with
-      | None => raise err_str_asp_no_type_sig
+      | None => err err_str_asp_no_type_sig
       | Some (ev_arrow UNWRAP in_sig out_sig) =>
         (* we are UNWRAP, so add to trail and continue *)
         F ((Trail_UNWRAP top_id) :: trails) et'
@@ -186,20 +186,20 @@ Definition apply_to_evidence_below {A} (G : GlobalContext) (f : EvidenceT -> A)
         match trail with
         | Trail_UNWRAP unwrap_id => 
           match (lookup top_id (asp_comps G)) with
-          | None => raise err_str_asp_no_compat_appr_asp
+          | None => err err_str_asp_no_compat_appr_asp
           | Some test_unwrapping_id =>
-            if (eqb test_unwrapping_id unwrap_id) 
+            if (dec_eq test_unwrapping_id unwrap_id) 
             then (* they are compatible so we can continue on smaller *)
               F trails' et'
             else (* they are not compatible, this is a massive error *)
-              raise err_str_wrap_asp_not_duals
+              err err_str_wrap_asp_not_duals
           end
-        | _ => raise err_str_trail_mismatch
+        | _ => err err_str_trail_mismatch
         end
 
       | Some (ev_arrow _ in_sig out_sig) =>
         (* we are neither WRAP or UNWRAP, so this is an error *)
-        raise err_str_asp_at_bottom_not_wrap
+        err err_str_asp_at_bottom_not_wrap
       end
     | left_evt et' => 
       (* we are pushing on a new left *)
@@ -215,11 +215,10 @@ Definition apply_to_evidence_below {A} (G : GlobalContext) (f : EvidenceT -> A)
       match trail with
       | Trail_LEFT => F trails' e1
       | Trail_RIGHT => F trails' e2
-      | _ => raise err_str_trail_mismatch
+      | _ => err err_str_trail_mismatch
       end
     end
   end.
-
 
 Inductive Evidence_Subterm_path G e' : list EvTrails -> EvidenceT -> Prop :=
 | esp_empty_trail : Evidence_Subterm_path G e' nil e'
@@ -316,12 +315,11 @@ Lemma Evidence_Subterm_path_same : forall G l e e1 e2,
 Proof.
   intros.
   prep_induction H.
-  induction H; intros; try (invc H0; eauto; fail).
-  - invc H0; eauto; congruence.
-  - invc H2; eauto; try congruence.
-  - invc H2; eauto; try congruence.
-  - invc H1; eauto; try congruence.
-  - invc H1; eauto; try congruence.
+  induction H; intros; try (inv H0; eauto; congruence).
+  - inv H2; eauto; try congruence.
+  - inv H2; eauto; try congruence.
+  - inv H1; eauto; try congruence.
+  - inv H1; eauto; try congruence.
 Qed.
 
 Definition Evidence_Subterm G e' : EvidenceT -> Prop :=
@@ -334,34 +332,24 @@ Definition Evidence_Subterm G e' : EvidenceT -> Prop :=
     match (lookup asp_id (asp_types G)) with
     | None => False
     | Some (ev_arrow UNWRAP in_sig out_sig) => 
-      match apply_to_evidence_below G F [Trail_UNWRAP asp_id] e'' with
-      | inr P => P
-      | inl _ => False
-      end
+      apply_to_evidence_below G F [Trail_UNWRAP asp_id] e'' <?> False
     | Some (ev_arrow _ in_sig out_sig) => 
       e' = e''
     end
   | left_evt e'' => 
-    match apply_to_evidence_below G F [Trail_LEFT] e'' with
-    | inr P => P
-    | inl _ => False
-    end
+    apply_to_evidence_below G F [Trail_LEFT] e'' <?> False
   | right_evt e'' => 
-    match apply_to_evidence_below G F [Trail_RIGHT] e'' with
-    | inr P => P
-    | inl _ => False
-    end
+    apply_to_evidence_below G F [Trail_RIGHT] e'' <?> False
   | split_evt e1 e2 => 
     e' = e1 \/ e' = e2 \/ F e1 \/ F e2
   end.
 
 Lemma apply_to_evidence_below_res_spec : forall {A} G (f : _ -> A) e v l,
-  apply_to_evidence_below G f l e = inr v ->
+  apply_to_evidence_below G f l e = res v ->
   (exists e', Evidence_Subterm_path G e' l e /\ f e' = v).
 Proof.
-  induction e; simpl in *; intros; intuition; ff.
-  all: eauto using Evidence_Subterm_path; ffa;
-  try rewrite String.eqb_eq in *; subst; eauto.
+  induction e; simpl in *; intros; intuition; ff u.
+  all: eauto using Evidence_Subterm_path; ff a.
   - exists x; split; eauto; eapply esp_wrap; eauto.
   - exists x; split; eauto; eapply esp_unwrap; eauto;
     intros HC; invc HC; eauto.
@@ -376,27 +364,26 @@ Proof.
 Qed.
 
 Lemma apply_to_evidence_below_nil : forall A G (f : _ -> A) e v,
-  apply_to_evidence_below G f nil e = inr v ->
+  apply_to_evidence_below G f nil e = res v ->
   f e = v.
 Proof.
-  destruct e; simpl in *; 
-  intros; find_injection; eauto.
+  destruct e; ff.
 Qed.
 
 Lemma apply_to_evidence_below_res : forall {A} G (fn1 : _ -> A) e l r,
-  apply_to_evidence_below G fn1 l e = inr r ->
+  apply_to_evidence_below G fn1 l e = res r ->
   (forall {B} (fn2 : _ -> B),
-    exists r', apply_to_evidence_below G fn2 l e = inr r').
+    exists r', apply_to_evidence_below G fn2 l e = res r').
 Proof.
-  induction e; simpl in *; intros; ff.
+  induction e; ff u.
 Qed.
 
 Lemma apply_to_evidence_below_errs_det : forall {A B} G (fn1 : _ -> A) (fn2 : _ -> B) e l r1 r2,
-  apply_to_evidence_below G fn1 l e = inl r1 ->
-  apply_to_evidence_below G fn2 l e = inl r2 ->
+  apply_to_evidence_below G fn1 l e = err r1 ->
+  apply_to_evidence_below G fn2 l e = err r2 ->
   r1 = r2.
 Proof.
-  induction e; simpl in *; intros; ff.
+  induction e; ff u.
 Qed.
 
 Lemma evidence_subterm_path_nil : forall G e e',
@@ -414,19 +401,11 @@ Lemma evidence_subterm_path_depth : forall G h t e e',
 Proof.
   intros.
   prep_induction H.
-  induction H; intros; try congruence; subst; ff.
-  - pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
-  - destruct t; simpl in *.
-    * eapply evidence_subterm_path_nil in H1; subst; lia.
-    * pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
-  - pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
-  - pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
-  - destruct t; simpl in *.
-    * eapply evidence_subterm_path_nil in H; subst; lia.
-    * pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
-  - destruct t; simpl in *.
-    * eapply evidence_subterm_path_nil in H; subst; lia.
-    * pose proof (IHEvidence_Subterm_path _ _ eq_refl); lia.
+  induction H; intros; try congruence; subst; ff u, l;
+  destruct t >
+  [ destruct trails; ff; find_eapply_lem_hyp evidence_subterm_path_nil; ff l
+  |
+    find_inversion; pp (IHEvidence_Subterm_path _ _ eq_refl); ff l ].
 Qed.
 
 Theorem Evidence_subterm_path_Ind_special G (P : EvidenceT -> Prop)
@@ -463,7 +442,7 @@ Proof.
         find_eapply_lem_hyp evidence_subterm_path_depth; eauto.
         simpl in *; lia.
       * eapply f_subterm_asp_nowrap; eauto; congruence.
-      (* eapply F. *)
+      (* eapply f. *)
       (* ff; try (exfalso; eauto; fail). *)
       (* eapply f_subterm; intros;
       ff; try (exfalso; eauto; fail).
@@ -500,33 +479,33 @@ Proof.
 Qed.
 
 (**  Calculate the size of an EvidenceT type *)
-Definition et_size (G : GlobalContext) : EvidenceT -> string + nat :=
+Definition et_size (G : GlobalContext) : EvidenceT -> Result nat string :=
   fix F e :=
   match e with
-  | mt_evt=> ret 0
-  | nonce_evt _ => ret 1
+  | mt_evt=> res 0
+  | nonce_evt _ => res 1
   | asp_evt p par e' =>
     let '(asp_paramsC asp_id args targ_plc targ) := par in
     match (lookup asp_id (asp_types G)) with
-    | None => raise err_str_asp_no_type_sig
+    | None => err err_str_asp_no_type_sig
     | Some (ev_arrow fwd in_sig out_sig) =>
       match fwd with
       | REPLACE => 
         (* we are replacing, so just the output *)
         match out_sig with
-        | OutN n => ret n
-        | OutUnwrap => raise err_str_cannot_have_outwrap
+        | OutN n => res n
+        | OutUnwrap => err err_str_cannot_have_outwrap
         end
       | WRAP => 
         (* we are wrapping, so just the output *)
         match out_sig with
-        | OutN n => ret n
-        | OutUnwrap => raise err_str_cannot_have_outwrap 
+        | OutN n => res n
+        | OutUnwrap => err err_str_cannot_have_outwrap 
         end
       | UNWRAP => 
         (* we are unwrapping, so we are the size of the previous input *)
         match out_sig with
-        | OutN n => raise err_str_unwrap_must_have_outwrap
+        | OutN n => err err_str_unwrap_must_have_outwrap
         | OutUnwrap => 
           n' <- apply_to_evidence_below G F [Trail_UNWRAP asp_id] e' ;;
           n'
@@ -535,8 +514,8 @@ Definition et_size (G : GlobalContext) : EvidenceT -> string + nat :=
         match out_sig with
         | OutN n => 
           n' <- F e' ;;
-          ret (n + n')
-        | OutUnwrap => raise err_str_cannot_have_outwrap 
+          res (n + n')
+        | OutUnwrap => err err_str_cannot_have_outwrap 
         end
       end
     end
@@ -551,7 +530,7 @@ Definition et_size (G : GlobalContext) : EvidenceT -> string + nat :=
   | split_evt e1 e2 => 
     s1 <- F e1 ;; 
     s2 <- F e2 ;;
-    ret (s1 + s2)
+    res (s1 + s2)
   end.
 Close Scope string_scope.
 
@@ -580,7 +559,7 @@ Definition get_bits (e:Evidence): list BS :=
 Inductive wf_Evidence : GlobalContext -> Evidence -> Prop :=
 | wf_Evidence_c: forall (ls:RawEv) et G n,
     List.length ls = n ->
-    et_size G et = ret n ->
+    et_size G et = res n ->
     wf_Evidence G (evc ls et).
 
 Inductive CopPhrase :=

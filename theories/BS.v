@@ -5,9 +5,10 @@
 From CoplandSpec Require Import ID_Type.
 
 Definition BS : Set := string.
+Global Opaque BS.
 
 Global Instance Stringifiable_BS : Stringifiable BS := Stringifiable_ID_Type.
 
-Global Instance EqClass_BS : EqClass BS. typeclasses eauto. Defined.
+Global Instance DecEq_BS : DecEq BS. typeclasses_eauto. Qed.
 
 Definition passed_bs  : BS := ""%string.
