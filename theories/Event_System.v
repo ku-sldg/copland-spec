@@ -12,6 +12,7 @@ From CoplandSpec Require Export Term_Defs.
     This event specification is a Big Step Semantics describing
     Copland execution and the ordering of events that must occur 
 *)
+Local Open Scope list_scope.
 Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
 | evts_asp: forall G i p e a evs,
     asp_events G p e a i = res evs ->
@@ -19,7 +20,7 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
 
 | evts_att: forall G q t i i' p e e' rem_evs,
     events G (cop_phrase q e t) (i + 1) rem_evs ->
-    i' = i + 1 + length rem_evs ->
+    i' = i + 1 + List.length rem_evs ->
     eval G q e t = res e' ->
     events G 
       (cop_phrase p e (att q t)) i
@@ -28,13 +29,13 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
 | evts_lseq : forall G t1 t2 p e e' i evs1 evs2,
     events G (cop_phrase p e t1) i evs1 ->
     eval G p e t1 = res e' ->
-    events G (cop_phrase p e' t2) (i + length evs1) evs2 ->
+    events G (cop_phrase p e' t2) (i + List.length evs1) evs2 ->
     events G (cop_phrase p e (lseq t1 t2)) i (evs1 ++ evs2)
 
 | evts_bseq: forall G t1 t2 p e evs1 evs2 s i i',
     events G (cop_phrase p (splitEv_T_l s e) t1) (i + 1) evs1 ->
-    events G (cop_phrase p (splitEv_T_r s e) t2) (i + 1 + length evs1) evs2 ->
-    i' = i + 1 + length evs1 + length evs2 ->
+    events G (cop_phrase p (splitEv_T_r s e) t2) (i + 1 + List.length evs1) evs2 ->
+    i' = i + 1 + List.length evs1 + List.length evs2 ->
     events G (cop_phrase p e (bseq s t1 t2)) i
       ([split i p] ++ evs1 ++ evs2 ++ [join i' p])
 
@@ -42,10 +43,10 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
     et_l = splitEv_T_l s e ->
     et_r = splitEv_T_r s e ->
     events G (cop_phrase p et_l t1) (i + 2) evs1 ->
-    events G (cop_phrase p et_r t2) (i + 2 + length evs1) evs2 ->
+    events G (cop_phrase p et_r t2) (i + 2 + List.length evs1) evs2 ->
     loc = i + 1 ->
-    i' = i + 2 + length evs1 + length evs2 ->
-    i'' = i + 2 + length evs1 + length evs2 + 1 ->
+    i' = i + 2 + List.length evs1 + List.length evs2 ->
+    i'' = i + 2 + List.length evs1 + List.length evs2 + 1 ->
     events G (cop_phrase p e (bpar s t1 t2)) i
       ([split i p] ++ [cvm_thread_start loc loc p et_r t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end i' loc] ++ [join i'' p]).
@@ -59,24 +60,24 @@ Fixpoint events_fix (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) (i 
   | att q t' => 
     evs <- events_fix G q e t' (i + 1) ;;
     e' <- eval G q e t' ;;
-    res ([req i p q e t'] ++ evs ++ [rpy (i + 1 + length evs) p q e'])
+    res ([req i p q e t'] ++ evs ++ [rpy (i + 1 + List.length evs) p q e'])
   | lseq t1 t2 => 
     evs1 <- events_fix G p e t1 i ;;
     e' <- eval G p e t1 ;;
-    evs2 <- events_fix G p e' t2 (i + length evs1) ;;
+    evs2 <- events_fix G p e' t2 (i + List.length evs1) ;;
     res (evs1 ++ evs2)
   | bseq s t1 t2 => 
     evs1 <- events_fix G p (splitEv_T_l s e) t1 (i + 1) ;;
-    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 1 + length evs1) ;;
+    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 1 + List.length evs1) ;;
 
-    res ([split i p] ++ evs1 ++ evs2 ++ [join (i + 1 + length evs1 + List.length evs2) p])
+    res ([split i p] ++ evs1 ++ evs2 ++ [join (i + 1 + List.length evs1 + List.length evs2) p])
   | bpar s t1 t2 =>
     evs1 <- events_fix G p (splitEv_T_l s e) t1 (i + 2) ;;
-    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 2 + length evs1) ;;
+    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 2 + List.length evs1) ;;
     let loc := i + 1 in
     res ([split i p] ++ [cvm_thread_start loc loc p (splitEv_T_r s e) t2] ++ evs1 ++ 
-      evs2 ++ [cvm_thread_end (i + 2 + length evs1 + List.length evs2) loc] ++ 
-      [join (i + 2 + length evs1 + length evs2 + 1) p])
+      evs2 ++ [cvm_thread_end (i + 2 + List.length evs1 + List.length evs2) loc] ++ 
+      [join (i + 2 + List.length evs1 + List.length evs2 + 1) p])
   end.
 
 Theorem events_events_fix_eq : forall G p e t i evs,
@@ -94,14 +95,14 @@ Qed.
     
 Lemma events_range: forall G t p e evs i,
   events G (cop_phrase p e t) i evs ->
-  events_size G p e t = res (length evs).
+  events_size G p e t = res (List.length evs).
 Proof.
   induction t; simpl in *; intuition;
   inversion H; subst; 
   try (repeat find_apply_hyp_hyp;
     repeat find_rewrite; simpl in *; 
     repeat find_rewrite; simpl in *;
-    repeat (rewrite length_app); simpl in *;
+    repeat (rewrite List.length_app); simpl in *;
     eauto;
     try (f_equal; lia)).
   - find_eapply_lem_hyp asp_events_size_works; ff.
@@ -109,7 +110,7 @@ Qed.
 
 Lemma events_fix_range : forall G p e t i evs,
   events_fix G p e t i = res evs ->
-  events_size G p e t = res (length evs).
+  events_size G p e t = res (List.length evs).
 Proof.
   intros; rewrite <- events_events_fix_eq in *; 
   eapply events_range; eauto.
@@ -120,7 +121,7 @@ Theorem events_deterministic_index : forall G t p e i v,
   events G (cop_phrase p e t) i v ->
   forall v',
   true_last v = Some v' ->
-  ev v' = i + length v - 1.
+  ev v' = i + List.length v - 1.
 Proof.
   intros.
   generalizeEverythingElse H.
@@ -131,7 +132,7 @@ Proof.
     simpl in *;
     repeat find_injection;
     simpl in *;
-    repeat (rewrite length_app);
+    repeat (rewrite List.length_app);
     simpl in *;
     try lia
   );
@@ -142,7 +143,7 @@ Proof.
   - find_eapply_lem_hyp true_last_app_spec; intuition;
     subst; simpl in *;
     try (rewrite app_nil_r); eauto;
-    repeat (rewrite length_app);
+    repeat (rewrite List.length_app);
     find_apply_hyp_hyp; try lia.
   - repeat (find_eapply_lem_hyp true_last_app_spec;
     break_or_hyp > [ ff;
@@ -150,7 +151,7 @@ Proof.
       find_eapply_lem_hyp app_eq_nil; ff;
       intuition; congruence | ]).
     simpl in *; repeat find_injection;
-    repeat (rewrite length_app);
+    repeat (rewrite List.length_app);
     simpl in *; ff; lia.
 Qed.
 

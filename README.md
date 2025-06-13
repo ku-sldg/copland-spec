@@ -25,8 +25,7 @@ Specification for the Copland DSL for Attestation Protocols
 - Compatible OCaml versions: 4.12 or later
 - Additional dependencies:
   - [Rocq-Candy](https://github.com/ku-sldg/RocqCandy)
-  - [Coq-JSON](https://github.com/liyishuai/coq-json)
-  - [ExtLib](https://github.com/coq-community/coq-ext-lib)
+  - [RocqJSON](https://github.com/ku-sldg/rocq-json)
   - [Dune](https://dune.build) 3.17 or later
 - Related publication(s): none
 
@@ -38,7 +37,7 @@ is via [OPAM](https://opam.ocaml.org/doc/Install.html):
 ```shell
 opam repo add -a --set-default ku-sldg/opam-repo https://github.com/ku-sldg/opam-repo.git
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam install coq-copland-spec
+opam install rocq-copland-spec
 ```
 
 To instead build and install manually, do:

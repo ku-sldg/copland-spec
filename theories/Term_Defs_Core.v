@@ -17,7 +17,7 @@ modify it under the terms of the BSD License as published by the
 University of California.  See license.txt for details. *)
 
 
-From JSON Require Export JSON.
+From RocqJSON Require Export JSON.
 From CoplandSpec Require Export BS ID_Type ErrorMessages.
 From RocqCandy Require Import ResultMonad Maps.
 Import ResultNotation.
@@ -39,7 +39,7 @@ Definition Event_ID: Set := nat.
 *)
 Definition ASP_ID: Set := ID_Type.
 Definition ASP_Compat_MapT := Map ASP_ID ASP_ID.
-Definition ASP_ARGS := json. (* Map string string. *)
+Definition ASP_ARGS := JSON. (* Map string string. *)
 
 Definition TARG_ID: Set := ID_Type.
 
@@ -593,7 +593,7 @@ Notation "#" := (asp HSH) (in custom copland_entry at level 98).
 Notation "* p" := (asp (ENC p)) (in custom copland_entry at level 98).
 Notation "'{}'" := (asp NULL) (in custom copland_entry at level 98).
 (* TODO: Surely we need something more robust than they are ALL EXTD 1, but uhhhh *)
-Notation "'<<' x y z '>>'" := (asp (ASPC (asp_paramsC x (JSON__Object []) y z))) 
+Notation "'<<' x y z '>>'" := (asp (ASPC (asp_paramsC x (JSON_Object []) y z))) 
                       (in custom copland_entry at level 98).
 
 

@@ -81,25 +81,6 @@ Definition err_str_asp_at_bottom_not_wrap := "ASP at bottom of evidence is not a
 
 Definition err_str_cannot_have_outwrap := ("Invalid Output Signature of type 'OutUnwrap' on an ASP").
 
-(* JSON Converter Strings *)
-Definition errStr_json_to_manifest_set := "errStr_json_to_manifest_set".
-
-Definition errStr_json_to_map := "errStr_json_to_map".
-
-Definition errStr_json_to_id_type := "errStr_json_to_id_type".
-
-Definition errStr_json_to_manifest := "errStr_json_to_manifest".
-
-Definition errStr_json_to_ASP_Locator := "errStr_json_to_ASP_Locator".
-
-Definition errStr_json_to_am_lib := "errStr_json_to_am_lib".
-
-Definition errStr_json_to_pair : string := "errStr_json_to_pair".
-
-Definition errStr_map_from_json := "errStr_map_from_json".
-
-Definition errStr_json_from_pair := "Error converting pair from JSON".
-
 Definition err_str_01 := "Invalid request type".
 Definition err_str_fwd_from_string := "Error parsing FWD from string".
 
@@ -125,8 +106,6 @@ Definition err_str_json_parsing_outn := "Error parsing OutN from JSON (wrong num
 
 Definition err_str_evoutsig_json_constructor := "Invalid EvOutSig JSON constructor name".
 
-Definition err_str_json_no_constructor_name_string := "JSON: No constructor name found in JSON".
-
 Definition err_str_invalid_evinsig_json := "Invalid EvInSig JSON".
 
 Definition err_str_json_parsing_failure_wrong_number_args :=
@@ -142,8 +121,6 @@ Definition err_str_json_parsing_ASPC := "Error parsing ASPC from JSON".
 Definition err_str_invalid_evidence_json := "Invalid Evidence JSON".
 
 Definition err_str_parsing_global_ctx := "Error parsing Global Context from JSON".
-
-Definition err_str_json_unrecognized_constructor := "Unrecognized constructor in JSON".
 
 Definition err_str_list_json_to_manifest_set := "Error converting list from JSON to Manifest Set".
 

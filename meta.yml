@@ -4,7 +4,7 @@ fullname: Copland Specification
 # NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
 shortname: copland-spec
 lib_name: CoplandSpec # NOTE: This is the library name that other projects will use to depend on/import from this project
-opam_name: coq-copland-spec # i.e. coq-Base64
+opam_name: rocq-copland-spec # i.e. coq-Base64
 synopsis: "Specification for the Copland DSL for Attestation Protocols"
 description: "Specification for the Copland DSL for Attestation Protocols"
 authors:
@@ -49,16 +49,13 @@ dependencies:
       name: rocq-candy
       version: '{ >= "0.2.2" }'
       lib_name: "RocqCandy"
-  - description: "[Coq-JSON](https://github.com/liyishuai/coq-json)"
+  - description: "[RocqJSON](https://github.com/ku-sldg/rocq-json)"
     opam:
-      name: coq-json
-      version: '{ >= "0.2.0" }'
-      lib_name: JSON
-  - description: "[ExtLib](https://github.com/coq-community/coq-ext-lib)"
-    opam:
-      name: coq-ext-lib
-      version: '{ >= "0.13.0" }'
-      lib_name: "ExtLib"
+      name: rocq-json
+      version: '{ >= "0.1.0" }'
+      lib_name: RocqJSON
+
+coq_trans_deps_workaround: true
 
 ci_extra_repos:
   - description: "KU-SLDG Packages"
