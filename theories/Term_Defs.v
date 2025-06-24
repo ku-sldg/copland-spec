@@ -48,14 +48,14 @@ Definition sp_ev (sp:SP) (e:EvidenceT) : EvidenceT :=
   | NONE => mt_evt
   end.
 
-Definition equiv_EvidenceT `{DecEq ASP_ID} (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
+Definition equiv_EvidenceT `{DecEq ASP_ID, DecEq nat} (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
   n1 <- et_size G e1 ;;
   n2 <- et_size G e2 ;;
   (if dec_eq n1 n2 then res true else res false) <?> false.
 
 (** Helper function for EvidenceT type reference semantics *)
 
-Definition appr_procedure' (G : GlobalContext) (p : Plc) 
+Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) 
     : EvidenceT -> EvidenceT -> Result EvidenceT string :=
   fix F (e ev_out : EvidenceT) : Result EvidenceT string :=
   if (equiv_EvidenceT G e ev_out)
@@ -78,10 +78,10 @@ Definition appr_procedure' (G : GlobalContext) (p : Plc)
   *)
   | asp_evt asp_top_plc ps e' => 
     let '(asp_paramsC asp_id args targ_plc targ) := ps in
-    match lookup asp_id (asp_types G) with
+    match (asp_types G) ![ asp_id ] with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow fwd in_sig out_sig) =>
-      match lookup asp_id (asp_comps G) with
+      match (asp_comps G) ![ asp_id ] with
       | None => err err_str_asp_no_compat_appr_asp
       | Some appr_id =>
         let dual_par := asp_paramsC appr_id args targ_plc targ in
@@ -90,7 +90,7 @@ Definition appr_procedure' (G : GlobalContext) (p : Plc)
           res (asp_evt p dual_par ev_out)
         | WRAP => 
           (* apply the dual to get a new evidence to operate on, then recurse *)
-          match lookup appr_id (asp_types G) with
+          match (asp_types G) ![ appr_id ] with
           | None => err err_str_asp_no_type_sig
           | Some (ev_arrow UNWRAP in_sig' out_sig') =>
             let ev_out' := asp_evt p dual_par ev_out in
@@ -137,7 +137,7 @@ Definition appr_procedure' (G : GlobalContext) (p : Plc)
   end)
   else err err_str_appr_compute_evt_neq.
 
-Definition appr_procedure (G : GlobalContext) (p : Plc) (e : EvidenceT) 
+Definition appr_procedure `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
     : Result EvidenceT string :=
   appr_procedure' G p e e.
 
@@ -229,7 +229,7 @@ Definition asp_comp_map_supports_ev (G : GlobalContext) : EvidenceT -> Prop  :=
   | asp_evt asp_top_plc ps e' => 
     let '(asp_paramsC asp_id args targ_plc targ) := ps in
     lookup asp_id (asp_comps G) <> None /\
-    (match (lookup asp_id (asp_types G)) with
+    (match ((asp_types G) ![ asp_id ]) with
     | None => False
     | Some (ev_arrow fwd in_sig out_sig) =>
       match fwd with
@@ -246,36 +246,6 @@ Definition asp_comp_map_supports_ev (G : GlobalContext) : EvidenceT -> Prop  :=
   | split_evt e1 e2 => 
       F e1 /\ F e2
   end.
-
-(* 
-Theorem asp_comp_map_supports_ev_iff_appr_procedure: 
-  forall e eo p G,
-  asp_comp_map_supports_ev G e <->
-  exists e', appr_procedure' G p e eo = resultC e'.
-Proof.
-  induction e; simpl in *; intros; try (intuition; eauto; ffa; fail);
-  ff; intuition; try congruence; break_exists; try congruence;
-  result_monad_unfold; ff;
-  try erewrite IHe1 in *;
-  try erewrite IHe2 in *;
-  break_exists; repeat find_rewrite; try congruence;
-  try (eexists; repeat find_rewrite; eauto; fail);
-  try (find_higher_order_rewrite; ff; fail).
-  * eapply IHe; ff.
-  * erewrite IHe in H0; ff. 
-  * erewrite IHe; ff.
-  * erewrite IHe; ff. 
-  * 
-    match goal with
-    | H: appr_procedure ?g ?p ?e ?e0 = 
-      IH : context[exists _ : _, appr_procedure _ _ ?e _ = _] |- _ => 
-      assert (exists )
-    end.
-  * admit. 
-  * admit. 
-  Unshelve. all: eauto.
-Qed.
-*)
 
 Fixpoint eval (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) 
     : Result EvidenceT string :=
@@ -320,14 +290,15 @@ Inductive Ev :=
 
 (** The natural number used to distinguish events. *)
 
-Definition appr_events_size (G : GlobalContext) : EvidenceT -> Result nat string :=
+Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext) 
+    : EvidenceT -> Result nat string :=
   fix F e : Result nat string :=
   match e with
   | mt_evt => res 0
   | nonce_evt _ => res 1 (* [umeas check_nonce nonce] *)
   | asp_evt p par e' => 
     let '(asp_paramsC asp_id args targ_plc targ) := par in
-    match (lookup asp_id (asp_types G)) with
+    match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow asp_fwd in_sig out_sig) =>
       match asp_fwd with
@@ -361,7 +332,7 @@ Definition appr_events_size (G : GlobalContext) : EvidenceT -> Result nat string
   end.
 
 (* EvidenceT Type size *)
-Fixpoint events_size (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term)
+Fixpoint events_size `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term)
     : Result nat string :=
   match t with
   | asp a => 
@@ -403,7 +374,7 @@ Definition ev x : nat :=
   | cvm_thread_end i _ => i
   end.
 
-Definition appr_events' (G : GlobalContext) (p : Plc) 
+Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) 
     : EvidenceT -> EvidenceT -> nat -> Result (list Ev) string :=
   fix F (e ev_out : EvidenceT) (i : nat) : Result (list Ev) string :=
   match e with
@@ -412,11 +383,11 @@ Definition appr_events' (G : GlobalContext) (p : Plc)
   (* (nonce_evt n)] *)
   | asp_evt p' ps e' => 
     let '(asp_paramsC asp_id args targ_plc targ) := ps in
-    match (lookup asp_id (asp_comps G)) with
+    match ((asp_comps G) ![ asp_id ]) with
     | None => err err_str_asp_no_compat_appr_asp
     | Some appr_id => 
       let dual_par := asp_paramsC appr_id args targ_plc targ in
-      match (lookup asp_id (asp_types G)) with
+      match ((asp_types G) ![ asp_id ]) with
       | None => err err_str_asp_no_type_sig
       | Some (ev_arrow fwd in_sig out_sig) =>
         match fwd with
@@ -540,11 +511,11 @@ Proof.
   try (repeat (rewrite length_app in *); simpl in *; f_equal; lia).
 Qed.
 
-Definition appr_events (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat) 
+Definition appr_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat) 
     : Result (list Ev) string :=
   appr_events' G p e e i.
 
-Definition asp_events (G : GlobalContext) (p : Plc) (e : EvidenceT) 
+Definition asp_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
     (a : ASP) (i : nat) : Result (list Ev) string :=
   match a with
   | NULL => res ([null i p])
