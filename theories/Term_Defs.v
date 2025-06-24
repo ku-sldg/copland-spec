@@ -48,7 +48,7 @@ Definition sp_ev (sp:SP) (e:EvidenceT) : EvidenceT :=
   | NONE => mt_evt
   end.
 
-Definition equiv_EvidenceT (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
+Definition equiv_EvidenceT `{DecEq ASP_ID} (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
   n1 <- et_size G e1 ;;
   n2 <- et_size G e2 ;;
   (if dec_eq n1 n2 then res true else res false) <?> false.
