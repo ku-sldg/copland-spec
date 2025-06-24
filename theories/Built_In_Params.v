@@ -32,3 +32,4 @@ Definition enc_aspargs : ASP_ARGS := JSON_Object [].
 Definition enc_targid : ASP_ID := "enc_targ".
 Definition enc_params : Plc -> ASP_PARAMS :=
   fun enc_targplc => asp_paramsC enc_aspid enc_aspargs enc_targplc enc_targid.
+Close Scope string_scope.

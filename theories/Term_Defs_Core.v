@@ -276,7 +276,7 @@ Definition Evidence_Subterm_path_fix G e' : list EvTrails -> EvidenceT -> Prop :
           match (lookup top_id (asp_comps G)) with
           | None => False
           | Some test_unwrapping_id =>
-            if (eqb test_unwrapping_id unwrap_id) 
+            if (dec_eq test_unwrapping_id unwrap_id) 
             then (* they are compatible so we can continue on smaller *)
               F trails' et'
             else (* they are not compatible, this is a massive error *)

@@ -18,18 +18,6 @@ Global Instance DecEq_Split `{DecEq SP} : DecEq Split.
 build_deq.
 Defined.
 
-(* Fixpoint eqb_Term `{DecEq Plc, DecEq SP, DecEq ASP} (t1 t2 : Term) : bool :=
-  match t1, t2 with
-  | asp a1, asp a2 => eqb a1 a2
-  | att p1 t1, att p2 t2 => eqb p1 p2 && eqb_Term t1 t2
-  | lseq t1 t2, lseq t1' t2' => eqb_Term t1 t1' && eqb_Term t2 t2'
-  | bseq s t1 t2, bseq s' t1' t2' => 
-      eqb s s' && eqb_Term t1 t1' && eqb_Term t2 t2'
-  | bpar s t1 t2, bpar s' t1' t2' => 
-      eqb s s' && eqb_Term t1 t1' && eqb_Term t2 t2'
-  | _, _ => false
-  end. *)
-
 Global Instance DecEq_Term `{DecEq Plc, DecEq Split, DecEq ASP} : DecEq Term.
 ref (Build_DecEq _ _).
 intros x; induction x;
@@ -214,13 +202,13 @@ Definition constructor_from_JSON_rec {A:Type} {top_js : JSON} (type_name:string)
 f (@constructor_body_from_JSON_gen_rec top_js type_name).
 
 Definition FWD_from_string (s : string) : Result FWD string :=
-  if (eqb s replace_name_constant)
+  if (String.eqb s replace_name_constant)
   then res REPLACE
-  else if (eqb s wrap_name_constant)
+  else if (String.eqb s wrap_name_constant)
   then res WRAP
-  else if (eqb s unwrap_name_constant)
+  else if (String.eqb s unwrap_name_constant)
   then res UNWRAP
-  else if (eqb s extend_name_constant)
+  else if (String.eqb s extend_name_constant)
   then res EXTEND
   else err err_str_fwd_from_string.
 
@@ -281,9 +269,9 @@ Definition EvOutSig_from_JSON `{Jsonifiable nat} (js : JSON) : Result EvOutSig s
   let body_const := ev_out_sig_name_constant ++ type_sep ++ body_string_constant in
   match (JSON_get_Object type_const js) with
   | res (JSON_String cons_name) =>
-    if (eqb cons_name outunwrap_name_constant) 
+    if (String.eqb cons_name outunwrap_name_constant) 
     then res OutUnwrap
-    else if (eqb cons_name outn_name_constant) 
+    else if (String.eqb cons_name outn_name_constant) 
     then match js with
         | JSON_Object [
             _;
@@ -324,9 +312,9 @@ Definition EvSig_from_JSON `{Jsonifiable EvOutSig, Stringifiable FWD} (js : JSON
 
   fwd <- from_string fwd_js ;;
   in_sig <- 
-    (if (eqb in_sig_js all_name_constant) 
+    (if (String.eqb in_sig_js all_name_constant) 
     then res InAll
-    else if (eqb in_sig_js none_name_constant) 
+    else if (String.eqb in_sig_js none_name_constant) 
     then res InNone
     else err err_str_invalid_evinsig_json) ;;
   out_sig <- from_JSON out_sig_js ;;
@@ -366,9 +354,9 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
     let type_name := evidencet_name_constant in
     match (JSON_get_Object (type_name ++ type_sep ++ type_string_constant) js) with
     | res (JSON_String cons_name) =>
-      if (eqb cons_name mt_name_constant) 
+      if (String.eqb cons_name mt_name_constant) 
       then res mt_evt
-      else if (eqb cons_name nonce_evt_name_constant) 
+      else if (String.eqb cons_name nonce_evt_name_constant) 
       then match js with
           | JSON_Object [
               _;
@@ -378,7 +366,7 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
               res (nonce_evt n_js)
           | _ => err err_str_json_parsing_failure_wrong_number_args
           end
-      else if (eqb cons_name asp_evt_name_constant) 
+      else if (String.eqb cons_name asp_evt_name_constant) 
       then match js with
           | JSON_Object [
               _;
@@ -390,7 +378,7 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
               res (asp_evt plc asp_par ev')
           | _ => err err_str_json_parsing_failure_wrong_number_args
           end 
-      else if (eqb cons_name left_evt_name_constant)
+      else if (String.eqb cons_name left_evt_name_constant)
       then match js with
           | JSON_Object [
               _;
@@ -400,7 +388,7 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
               res (left_evt ev')
           | _ => err err_str_json_parsing_failure_wrong_number_args
           end 
-      else if (eqb cons_name right_evt_name_constant)
+      else if (String.eqb cons_name right_evt_name_constant)
       then match js with
           | JSON_Object [
               _;
@@ -410,7 +398,7 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
               res (right_evt ev')
           | _ => err err_str_json_parsing_failure_wrong_number_args
           end 
-      else if (eqb cons_name split_evt_name_constant) 
+      else if (String.eqb cons_name split_evt_name_constant) 
       then match js with
           | JSON_Object [
               _;
@@ -438,9 +426,9 @@ Global Instance Stringifiable_SP : Stringifiable SP := {
                   | NONE => none_name_constant
                   end);
   from_string := (fun s => 
-                    if (eqb s all_name_constant)
+                    if (String.eqb s all_name_constant)
                     then res ALL
-                    else if (eqb s none_name_constant)
+                    else if (String.eqb s none_name_constant)
                     then res NONE
                     else err err_str_json_parsing_SP);
   canonical_stringification := fun s => match s with
@@ -463,7 +451,6 @@ Definition ASP_to_JSON `{Stringifiable Plc, Jsonifiable ASP_ARGS} (t : ASP) : JS
       constructor_to_JSON STR_ASP enc_name_constant 
         [(JSON_String (to_string q))]
   end.
-
 
 Definition ASP_from_JSON_map `{Stringifiable Plc, Jsonifiable ASP_ARGS}: Map string (JSON -> (Result ASP string)) := 
   [(null_name_constant, constructor_from_JSON STR_ASP (fun _ => res NULL));
@@ -550,12 +537,12 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
     let body_str := type_name ++ type_sep ++ body_string_constant in
     match (JSON_get_Object type_str js) with
     | res (JSON_String cons_name) =>
-      if (eqb cons_name asp_name_constant) 
+      if (String.eqb cons_name asp_name_constant) 
       then 
         asp_js <- (JSON_get_Object body_str js) ;;
         asp_val <- from_JSON asp_js ;;
         res (asp asp_val)
-      else if (eqb cons_name att_name_constant) 
+      else if (String.eqb cons_name att_name_constant) 
       then match js with
         | (JSON_Object [
             _;
@@ -566,7 +553,7 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
             res (att plc_val term_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
-      else if (eqb cons_name lseq_name_constant) 
+      else if (String.eqb cons_name lseq_name_constant) 
       then match js with
         | JSON_Object [
             _;
@@ -577,7 +564,7 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
             res (lseq term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
-      else if (eqb cons_name bseq_name_constant) 
+      else if (String.eqb cons_name bseq_name_constant) 
       then match js with
         | JSON_Object [
             _;
@@ -589,7 +576,7 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
             res (bseq sp_val term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
-      else if (eqb cons_name bpar_name_constant) 
+      else if (String.eqb cons_name bpar_name_constant) 
       then match js with
         | JSON_Object [
             _;
