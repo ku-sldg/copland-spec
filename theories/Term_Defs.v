@@ -205,7 +205,7 @@ Module Testing.
 End Testing.
 
 (** Helper function for EvidenceT type reference semantics *)
-Definition eval_asp (G : GlobalContext) (a : ASP) 
+Definition eval_asp `{DecEq ASP_ID} (G : GlobalContext) (a : ASP) 
     (p : Plc) (e : EvidenceT) : Result EvidenceT string :=
   match a with
   | NULL => res mt_evt
@@ -221,7 +221,8 @@ Definition eval_asp (G : GlobalContext) (a : ASP)
 (** EvidenceT Type denotational reference semantics.
     The EvidenceT associated with a term, a place, and some initial EvidenceT. *)
 
-Definition asp_comp_map_supports_ev (G : GlobalContext) : EvidenceT -> Prop  :=
+Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext) 
+    : EvidenceT -> Prop  :=
   fix F (e : EvidenceT) : Prop :=
   match e with
   | mt_evt => True
@@ -247,7 +248,7 @@ Definition asp_comp_map_supports_ev (G : GlobalContext) : EvidenceT -> Prop  :=
       F e1 /\ F e2
   end.
 
-Fixpoint eval (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) 
+Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) 
     : Result EvidenceT string :=
   match t with
   | asp a => eval_asp G a p e
