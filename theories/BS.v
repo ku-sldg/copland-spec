@@ -4,11 +4,7 @@
 
 From CoplandSpec Require Import ID_Type.
 
-Definition BS : Set := string.
+Definition BS : Set := ID_Type.
 Global Opaque BS.
-
-Global Instance Stringifiable_BS : Stringifiable BS := Stringifiable_ID_Type.
-
-Global Instance DecEq_BS : DecEq BS := DecEq_ID_Type.
 
 Definition passed_bs  : BS := ""%string.
