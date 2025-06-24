@@ -38,7 +38,6 @@ Definition Event_ID: Set := nat.
           (defined and interpreted per-scenario/implementaiton).
 *)
 Definition ASP_ID: Set := ID_Type.
-Definition ASP_Compat_MapT := Map ASP_ID ASP_ID.
 Definition ASP_ARGS := JSON. (* Map string string. *)
 
 Definition TARG_ID: Set := ID_Type.
@@ -108,9 +107,10 @@ Inductive ASP :=
 | APPR : ASP
 | ENC: Plc -> ASP.
 
-Definition ASP_Type_Env := Map ASP_ID EvSig.
+Definition ASP_Type_Env `{DecEq ASP_ID} := Map ASP_ID EvSig.
+Definition ASP_Compat_MapT `{DecEq ASP_ID} := Map ASP_ID ASP_ID.
 
-Record GlobalContext := {
+Record GlobalContext `{DecEq ASP_ID} := {
   asp_types: ASP_Type_Env;
   asp_comps: ASP_Compat_MapT
 }.
