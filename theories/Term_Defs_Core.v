@@ -47,19 +47,6 @@ Definition TARG_ID: Set := ID_Type.
 Inductive ASP_PARAMS: Type :=
 | asp_paramsC: ASP_ID -> ASP_ARGS -> Plc -> TARG_ID -> ASP_PARAMS.
 
-(* Definition eqb_ASP_PARAMS `{EqClass ASP_ID, EqClass ASP_ARGS, EqClass Plc, EqClass TARG_ID}
-    (a1 a2 : ASP_PARAMS) : bool :=
-  let '(asp_paramsC a1 la1 p1 t1) := a1 in
-  let '(asp_paramsC a2 la2 p2 t2) := a2 in
-  (eqb a1 a2) && (eqb la1 la2) && (eqb p1 p2) && (eqb t1 t2).
-
-Global Instance  EqClass_ASP_PARAMS `{EqClass ASP_ID, EqClass ASP_ARGS, EqClass Plc, EqClass TARG_ID} : EqClass ASP_PARAMS.
-eapply Build_EqClass with (eqb := eqb_ASP_PARAMS).
-induction x; destruct y; ff;
-repeat rewrite Bool.andb_true_iff in *; ff;
-repeat rewrite eqb_eq in *; ff.
-Defined. *)
-
 Inductive FWD :=
 | REPLACE
 | WRAP
@@ -157,7 +144,6 @@ Definition EvidenceT_depth : EvidenceT -> nat :=
   | split_evt e1 e2 => 1 + max (F e1) (F e2)
   end.
 
-
 Inductive EvTrails :=
 | Trail_UNWRAP : ASP_ID -> EvTrails
 | Trail_LEFT  : EvTrails
@@ -175,7 +161,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) (f : 
     | nonce_evt _ => err err_str_no_evidence_below
 
     | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
-      match (lookup top_id (asp_types G)) with
+      match ((asp_types G) ![ top_id ]) with
       | None => err err_str_asp_no_type_sig
       | Some (ev_arrow UNWRAP in_sig out_sig) =>
         (* we are UNWRAP, so add to trail and continue *)
@@ -185,7 +171,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) (f : 
         (* we are a WRAP, better be the case we are looking for one *)
         match trail with
         | Trail_UNWRAP unwrap_id => 
-          match (lookup top_id (asp_comps G)) with
+          match ((asp_comps G) ![ top_id ]) with
           | None => err err_str_asp_no_compat_appr_asp
           | Some test_unwrapping_id =>
             if (dec_eq test_unwrapping_id unwrap_id) 
@@ -253,7 +239,8 @@ Inductive Evidence_Subterm_path G e' : list EvTrails -> EvidenceT -> Prop :=
   Evidence_Subterm_path G e' trails e2 ->
   Evidence_Subterm_path G e' (Trail_RIGHT :: trails) (split_evt e1 e2).
 
-Definition Evidence_Subterm_path_fix G e' : list EvTrails -> EvidenceT -> Prop :=
+Definition Evidence_Subterm_path_fix `{DecEq ASP_ID} G e' 
+    : list EvTrails -> EvidenceT -> Prop :=
   fix F trails e :=
   match trails with
   | nil => e' = e
@@ -263,7 +250,7 @@ Definition Evidence_Subterm_path_fix G e' : list EvTrails -> EvidenceT -> Prop :
     | nonce_evt _ => False
 
     | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
-      match (lookup top_id (asp_types G)) with
+      match ((asp_types G) ![ top_id ]) with
       | None => False
       | Some (ev_arrow UNWRAP in_sig out_sig) =>
         (* we are UNWRAP, so add to trail and continue *)
@@ -273,7 +260,7 @@ Definition Evidence_Subterm_path_fix G e' : list EvTrails -> EvidenceT -> Prop :
         (* we are a WRAP, better be the case we are looking for one *)
         match trail with
         | Trail_UNWRAP unwrap_id => 
-          match (lookup top_id (asp_comps G)) with
+          match ((asp_comps G) ![ top_id ]) with
           | None => False
           | Some test_unwrapping_id =>
             if (dec_eq test_unwrapping_id unwrap_id) 
@@ -322,14 +309,14 @@ Proof.
   - inv H1; eauto; try congruence.
 Qed.
 
-Definition Evidence_Subterm G e' : EvidenceT -> Prop :=
+Definition Evidence_Subterm `{DecEq ASP_ID} G e' : EvidenceT -> Prop :=
   fix F e :=
   match e with
   (* sort of a hack here, the terminals are always subterms!? *)
   | mt_evt => False
   | nonce_evt _ => False
-  | asp_evt _ (asp_paramsC asp_id _ _ _) e'' => 
-    match (lookup asp_id (asp_types G)) with
+  | asp_evt _ (asp_paramsC asp_id _ _ _) e'' =>
+    match ((asp_types G) ![ asp_id ]) with
     | None => False
     | Some (ev_arrow UNWRAP in_sig out_sig) => 
       apply_to_evidence_below G F [Trail_UNWRAP asp_id] e'' <?> False
@@ -479,14 +466,15 @@ Proof.
 Qed.
 
 (**  Calculate the size of an EvidenceT type *)
-Definition et_size (G : GlobalContext) : EvidenceT -> Result nat string :=
+Definition et_size `{DecEq ASP_ID} (G : GlobalContext) 
+    : EvidenceT -> Result nat string :=
   fix F e :=
   match e with
   | mt_evt=> res 0
   | nonce_evt _ => res 1
   | asp_evt p par e' =>
     let '(asp_paramsC asp_id args targ_plc targ) := par in
-    match (lookup asp_id (asp_types G)) with
+    match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow fwd in_sig out_sig) =>
       match fwd with
