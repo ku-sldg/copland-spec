@@ -388,11 +388,11 @@ Lemma evidence_subterm_path_depth : forall G h t e e',
 Proof.
   intros.
   prep_induction H.
-  induction H; intros; try congruence; subst; ff u, l;
-  destruct t >
-  [ destruct trails; ff; find_eapply_lem_hyp evidence_subterm_path_nil; ff l
-  |
-    find_inversion; pp (IHEvidence_Subterm_path _ _ eq_refl); ff l ].
+  induction H; intros; try congruence; subst; ff u, l; 
+  destruct t > [
+    try (inv H); try (inv H1); ff l
+    |
+    pp (IHEvidence_Subterm_path _ _ eq_refl); ff l ].
 Qed.
 
 Theorem Evidence_subterm_path_Ind_special G (P : EvidenceT -> Prop)
