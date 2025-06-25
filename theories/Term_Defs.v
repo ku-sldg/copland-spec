@@ -458,6 +458,13 @@ Ltac2 Notation "ateb_unpack"
     eapply apply_to_evidence_below_res_spec in $h as [? [$hesp1 $hf1]]
   end.
 
+Ltac2 Notation "unpack_atebs" :=
+  repeat (
+    match! goal with
+    | [ h : apply_to_evidence_below _ ?_f _ _ = res _ |- _ ] =>
+        ateb_unpack $h
+    end).
+
 Ltac2 Notation "ateb_diff" :=
   match! goal with
   | [ h1 : apply_to_evidence_below _ ?_f1 _ _ = res _,
@@ -598,7 +605,7 @@ Proof.
   induction e using (Evidence_subterm_path_Ind_special G); ff u, a, l;
   try (solve_true_last_app);
   try (solve_true_last_none);
-  try (ateb_unpack Heqr); ff a, l.
+  unpack_atebs; ff a, l.
   - find_eapply_lem_hyp IHe; ff l; lia.
   - find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
