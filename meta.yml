@@ -52,7 +52,7 @@ dependencies:
   - description: "[RocqJSON](https://github.com/ku-sldg/rocq-json)"
     opam:
       name: rocq-json
-      version: '{ >= "0.1.0" }'
+      version: '{ >= "0.2.0" }'
       lib_name: RocqJSON
 
 coq_trans_deps_workaround: true
