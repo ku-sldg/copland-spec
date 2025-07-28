@@ -525,6 +525,34 @@ Close Scope string_scope.
 (** Raw EvidenceT representaiton:  a list of binary (BS) values. *)
 Definition RawEv := list BS.
 
+Fixpoint peel_n_rawev (n : nat) (ls : RawEv) : Result (RawEv * RawEv) string :=
+  match n with
+  | 0 => res ([], ls)
+  | S n' =>
+    match ls with
+    | [] => err errStr_peel_n_am
+    | x :: ls' =>
+      match peel_n_rawev n' ls' with
+      | err e => err e
+      | res (ls1, ls2) => res (x :: ls1, ls2)
+      end
+    end
+  end.
+
+Lemma peel_n_rawev_result_spec : forall n ls ls1 ls2,
+  peel_n_rawev n ls = res (ls1, ls2) ->
+  ls = ls1 ++ ls2 /\ length ls1 = n.
+Proof.
+  induction n; ff u, a.
+Qed.
+
+Lemma peel_n_rawev_none_spec : forall n ls e,
+  peel_n_rawev n ls = err e ->
+  length ls < n.
+Proof.
+  induction n; ff u, a, l.
+Qed.
+
 (**  Type-Tagged Raw EvidenceT representation.  Used as the internal EvidenceT
      type managed by the CVM to track EvidenceT contents and its structure. *)
 Inductive Evidence :=
