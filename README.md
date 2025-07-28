@@ -21,7 +21,7 @@ Specification for the Copland DSL for Attestation Protocols
   - Will Thomas
   - KU-SLDG Lab
 - License: [Creative Commons Attribution Share Alike 4.0 International](LICENSE)
-- Compatible Coq versions: 8.20 later
+- Compatible Rocq/Coq versions: 8.20 later
 - Compatible OCaml versions: 4.12 or later
 - Additional dependencies:
   - [Rocq-Candy](https://github.com/ku-sldg/RocqCandy)
