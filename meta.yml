@@ -14,7 +14,7 @@ authors:
     email: "30wthomas@ku.edu"
   - name: "KU-SLDG Lab"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
-opam-file-version: "0.2.1"
+opam-file-version: "0.3.0"
 
 ######################################################
 # NOTE: Optional Extra Info
