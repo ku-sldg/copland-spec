@@ -47,7 +47,7 @@ dependencies:
   - description: "[Rocq-Candy](https://github.com/ku-sldg/RocqCandy)"
     opam:
       name: rocq-candy
-      version: '{ >= "0.2.2" }'
+      version: '{ >= "0.3.2" }'
       lib_name: "RocqCandy"
   - description: "[RocqJSON](https://github.com/ku-sldg/rocq-json)"
     opam:

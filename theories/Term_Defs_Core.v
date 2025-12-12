@@ -15,8 +15,6 @@ All Rights Reserved.
 This proof script is free software: you can redistribute it and/or
 modify it under the terms of the BSD License as published by the
 University of California.  See license.txt for details. *)
-
-
 From RocqJSON Require Export JSON.
 From CoplandSpec Require Export BS ID_Type ErrorMessages.
 From RocqCandy Require Import ResultMonad Maps.

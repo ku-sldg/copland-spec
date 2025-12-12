@@ -50,7 +50,7 @@ Proof.
   unfold depth_js_map.
   eapply fold_right_ind; ff l.
   right; exists (s, js'); simpl in *; split; try lia; eauto.
-  eapply (@lookup_impl_in string _ DecEq_string); ff.
+  find_eapply_lem_hyp @lookup_impl_in; ff.
 Defined.
 
 Lemma json_all_map_elements_smaller : forall js m s,
