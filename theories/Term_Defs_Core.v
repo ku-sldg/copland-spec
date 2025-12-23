@@ -135,7 +135,7 @@ Definition EvidenceT_depth : EvidenceT -> nat :=
   fix F e :=
   match e with
   | mt_evt => 0
-  | nonce_evt _ => 0
+  | nonce_evt _ => 1
   | asp_evt _ _ e' => 1 + F e'
   | left_evt e' => 1 + F e'
   | right_evt e' => 1 + F e'
@@ -147,9 +147,87 @@ Inductive EvTrails :=
 | Trail_LEFT  : EvTrails
 | Trail_RIGHT : EvTrails.
 
+Lemma lt_max_l : forall n1 n2,
+  n1 < S (max n1 n2).
+Proof.
+  lia.
+Qed.
+Lemma lt_max_r : forall n1 n2,
+  n2 < S (max n1 n2).
+Proof.
+  lia.
+Qed.
+
+Definition apply_to_evidence_below_dep {A} `{DecEq ASP_ID} 
+    (Amonotone : forall e1 e2, EvidenceT_depth e1 < EvidenceT_depth e2 -> Result (A e1) string -> Result (A e2) string)
+    (G : GlobalContext) (f : forall e: EvidenceT, A e)
+    : forall (l : list EvTrails) (e : EvidenceT), Result (A e) string :=
+  fix F trails e :=
+  match trails with
+  | nil => (* no further trail to follow! *)
+    res (f e)
+  | trail :: trails' =>
+    match e with
+    | mt_evt => err err_str_no_evidence_below
+    | nonce_evt _ => err err_str_no_evidence_below
+
+    | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
+      match ((asp_types G) ![ top_id ]) with
+      | None => err err_str_asp_no_type_sig
+      | Some (ev_arrow UNWRAP in_sig out_sig) =>
+        (* we are UNWRAP, so add to trail and continue *)
+        Amonotone _ _ ((Nat.lt_succ_diag_r _) : _ < EvidenceT_depth (asp_evt _ _ _)) 
+          (F ((Trail_UNWRAP top_id) :: trails) et')
+
+      | Some (ev_arrow WRAP in_sig out_sig) =>
+        (* we are a WRAP, better be the case we are looking for one *)
+        match trail with
+        | Trail_UNWRAP unwrap_id => 
+          match ((asp_comps G) ![ top_id ]) with
+          | None => err err_str_asp_no_compat_appr_asp
+          | Some test_unwrapping_id =>
+            if (dec_eq test_unwrapping_id unwrap_id) 
+            then (* they are compatible so we can continue on smaller *)
+              Amonotone _ _ ((Nat.lt_succ_diag_r _) : _ < EvidenceT_depth (asp_evt _ _ _)) 
+                (F trails' et')
+            else (* they are not compatible, this is a massive error *)
+              err err_str_wrap_asp_not_duals
+          end
+        | _ => err err_str_trail_mismatch
+        end
+
+      | Some (ev_arrow _ in_sig out_sig) =>
+        (* we are neither WRAP or UNWRAP, so this is an error *)
+        err err_str_asp_at_bottom_not_wrap
+      end
+    | left_evt et' => 
+      (* we are pushing on a new left *)
+      Amonotone _ _ (Nat.lt_succ_diag_r _ : _ < EvidenceT_depth (left_evt et')) 
+        (F (Trail_LEFT :: trails) et')
+
+    | right_evt et' => 
+      (* we are pushing on a new right *)
+      Amonotone _ _ (Nat.lt_succ_diag_r _ : _ < EvidenceT_depth (right_evt et')) 
+        (F (Trail_RIGHT :: trails) et')
+
+    | split_evt e1 e2 => 
+      (* we are a split, depending on trail we will either go 
+      left or right and continue *)
+      match trail with
+      | Trail_LEFT => 
+        Amonotone _ _ (lt_max_l _ _ : _ < EvidenceT_depth (split_evt e1 e2)) (F trails' e1)
+      | Trail_RIGHT => 
+        Amonotone _ _ (lt_max_r _ _ : _ < EvidenceT_depth (split_evt e1 e2)) (F trails' e2)
+      | _ => err err_str_trail_mismatch
+      end
+    end
+  end.
+
 Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) (f : EvidenceT -> A)
     : list EvTrails -> EvidenceT -> Result A string :=
-  fix F trails e :=
+  (* This is a refinement of the strong case where the type {A} is not dependent *)
+  (@apply_to_evidence_below_dep (fun _ => A) H (fun _ _ _ R => R) G f).
+  (* fix F trails e :=
   match trails with
   | nil => (* no further trail to follow! *)
     res (f e)
@@ -202,7 +280,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) (f : 
       | _ => err err_str_trail_mismatch
       end
     end
-  end.
+  end. *)
 
 Inductive Evidence_Subterm_path G e' : list EvTrails -> EvidenceT -> Prop :=
 | esp_empty_trail : Evidence_Subterm_path G e' nil e'

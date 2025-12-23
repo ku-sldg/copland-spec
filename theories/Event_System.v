@@ -50,7 +50,6 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
     events G (cop_phrase p e (bpar s t1 t2)) i
       ([split i p] ++ [cvm_thread_start loc loc p et_r t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end i' loc] ++ [join i'' p]).
-#[export] Hint Constructors events : core.
 
 
 Fixpoint events_fix (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) (i : nat) 
