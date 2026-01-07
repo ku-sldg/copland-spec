@@ -38,26 +38,29 @@ Proof.
   induction H; simpl; ff l.
 Qed.
 
-Lemma result_transfer_depth : forall e1 e2 : EvidenceT, 
-  EvidenceT_depth e1 < EvidenceT_depth e2 ->
-  Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e1} string -> 
-  Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e2} string.
+Lemma lt_le_transfer {a b c} :
+  b < c ->
+  a <= b ->
+  a <= c.
 Proof.
-  ref (
-    fun e1 e2 IHe1e2 Re1 =>
-    match Re1 with
-    | err s => err s
-    | res (exist _ s Hs) => res (exist _ s _)
-    end
-  ).
   lia.
 Qed.
 
+Definition result_transfer_depth (e1 e2 : EvidenceT)
+    (IHe1e2 : EvidenceT_depth e1 < EvidenceT_depth e2)
+    (Re1 :Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e1} string)
+  : Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e2} string :=
+  match Re1 with
+  | err s => err s
+  | res (exist _ s Hs) => res (exist _ s (lt_le_transfer IHe1e2 Hs))
+  end.
+
+(* 
 Fixpoint normalize_ev' `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
     : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }.
   ref (
-    let F := @normalize_ev' _ G in
-    let ATEB := (@apply_to_evidence_below_dep (fun e => { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }) _ result_transfer_depth G F) in
+    let F := normalize_ev' _ G in
+    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     match e with
     | mt_evt => exist _ mt_evt (Nat.le_refl _)
     | nonce_evt n => exist _ (nonce_evt n) (Nat.le_refl _)
@@ -129,17 +132,19 @@ Fixpoint normalize_ev' `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
       end
     end
   ).
-  all: 
-    assert (forall ev, EvidenceT_depth (proj1_sig (F ev)) <= EvidenceT_depth ev) 
-      by (intros ev; destruct (F ev); ff);
-    try (ff l; fail);
-    try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
+Proof.
+all: 
+  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev' _ G ev)) <= EvidenceT_depth ev) 
+    by (intros ev; destruct (normalize_ev' _ G ev); ff);
+  try (ff l; fail);
+  try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
 Defined.
+*)
 
-Equations? normalize_ev''' `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
+Equations? normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
     : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e } :=
-  normalize_ev''' G e := 
-    let F := normalize_ev''' G in
+  normalize_ev G e := 
+    let F := normalize_ev G in
     let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     match e with
     | mt_evt => exist _ mt_evt (Nat.le_refl _)
@@ -212,13 +217,27 @@ Equations? normalize_ev''' `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
       end
     end.
 Proof.
-all: subst F ATEB; clear F ATEB;
-  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev''' _ G ev)) <= EvidenceT_depth ev) 
-    by (intros ev; destruct (normalize_ev''' _ G ev); ff);
+all: 
+  try (clear F ATEB normalize_ev; lia);
+  Control.enter (fun () => 
+    subst F ATEB;
+    set (ev_res := normalize_ev _ G e'); 
+    clearbody ev_res; clear normalize_ev;
+    destruct ev_res; simpl in *; try lia
+  ).
+Defined.
+(* Qed.
+- 
+clear F ATEB normalize_ev.
+all: 
+  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev _ G ev)) <= EvidenceT_depth ev) 
+    by (intros ev; destruct (normalize_ev _ G ev); ff);
   try (ff l; fail);
   try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
-Qed.
+Defined. *)
+Opaque normalize_ev.
 
+(* 
 Axiom hammer : False.
 
 Equations? normalize_ev'' (HDA : DecEq ASP_ID) (G : GlobalContext) (e : EvidenceT) 
@@ -357,6 +376,7 @@ all: try lia.
 - destruct e_norm; ff l.
 - destruct e_norm; ff l.
 Qed.
+*)
 
 Module TestNormalizeEv.
 
@@ -365,18 +385,7 @@ Module TestNormalizeEv.
   Example test_normalize_ev1 : exists He, 
     normalize_ev G (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) = exist _ (nonce_evt 1) He.
   Proof.
-    intros.
-    eexists.
-    ltac1:(simp normalize_ev).
-    reflexivity.
-  Qed.
-
-  Example test_normalize_ev'1 : exists He, 
-    normalize_ev' G (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) = exist _ (nonce_evt 1) He.
-  Proof.
-    intros.
-    eexists.
-    reflexivity.
+    repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 
   Example test_normalize_ev2 : exists He, 
@@ -388,14 +397,6 @@ Module TestNormalizeEv.
     reflexivity.
   Qed.
 
-  Example test_normalize_ev'2 : exists He, 
-    normalize_ev' G (left_evt (left_evt (split_evt (split_evt (nonce_evt 0) (nonce_evt 1)) (nonce_evt 2)))) = exist _ (nonce_evt 0) He.
-  Proof.
-    intros.
-    eexists.
-    reflexivity.
-  Qed.
-
   Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
@@ -403,12 +404,10 @@ Module TestNormalizeEv.
     exists He, normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) mt_evt)) = exist _ mt_evt He.
   Proof.
     intros.
-    eexists.
-    ltac1:(simp normalize_ev).
-    ff.
+    repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 
-  Example test_normalize_ev'3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
+  (* Example test_normalize_ev'3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
     (asp_comps G) ![ aid2 ] = Some aid1 ->
@@ -418,7 +417,7 @@ Module TestNormalizeEv.
     eexists.
     unfold normalize_ev'.
     admit.
-  Qed.
+  Qed. *)
 
   Example test_normalize_ev4 : 
     forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4 targp1 targp2 targp3 targp4 targ1 targ2 targ3 targ4,
@@ -435,9 +434,7 @@ Module TestNormalizeEv.
             (asp_evt p4 (asp_paramsC aid4 args4 targp4 targ4) mt_evt)))) = exist _ mt_evt He.
   Proof.
     intros.
-    eexists.
-    ltac1:(simp normalize_ev); ff.
-    - reflexivity.
+    repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 End TestNormalizeEv.
 
