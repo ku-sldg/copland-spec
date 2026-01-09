@@ -46,6 +46,20 @@ Proof.
   lia.
 Qed.
 
+Lemma sle_impl_les {a b} :
+  S a <= b ->
+  a <= S b.
+Proof.
+  lia.
+Qed.
+
+Lemma smax_le_seither {a b c} :
+  S (max a b) <= c ->
+  a <= S c /\ b <= S c.
+Proof.
+  lia.
+Qed.
+
 Definition result_transfer_depth (e1 e2 : EvidenceT)
     (IHe1e2 : EvidenceT_depth e1 < EvidenceT_depth e2)
     (Re1 :Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e1} string)
@@ -55,233 +69,50 @@ Definition result_transfer_depth (e1 e2 : EvidenceT)
   | res (exist _ s Hs) => res (exist _ s (lt_le_transfer IHe1e2 Hs))
   end.
 
-(* 
-Fixpoint normalize_ev' `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
-    : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }.
-  ref (
-    let F := normalize_ev' _ G in
-    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
-    match e with
-    | mt_evt => exist _ mt_evt (Nat.le_refl _)
-    | nonce_evt n => exist _ (nonce_evt n) (Nat.le_refl _)
-    | left_evt e' =>
-      match ATEB [Trail_LEFT] e' with
-      | err _ => (* couldn't reduce *)
-        let '(exist _ e_norm He_norm) := F e' in
-        match e_norm as enorm' return e_norm = enorm' -> _ with
-        | split_evt l r => fun Henorm => exist _ l _
-        | _ => fun Henorm => exist _ (left_evt e_norm) _
-        end eq_refl
-      | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-        exist _ e'res _
-      end
-    | right_evt e' =>
-      match ATEB [Trail_RIGHT] e' with
-      | err _ => (* couldn't reduce *)
-        let '(exist _ e_norm He_norm) := F e' in
-        match e_norm as enorm' return e_norm = enorm' -> _ with
-        | split_evt l r => fun Henorm => exist _ r _
-        | _ => fun Henorm => exist _ (right_evt e_norm) _
-        end eq_refl
-      | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-        exist _ e'res _
-      end
-    | split_evt l r =>
-      let '(exist _ l_norm Hl_norm) := F l in
-      let '(exist _ r_norm Hr_norm) := F r in
-      exist _ (split_evt l_norm r_norm) _
-    | asp_evt p (asp_paramsC asp_id args targ_plc targ) e' =>
-      match ((asp_types G) ![ asp_id ]) with
-      | None => (* couldn't top-level reduce anyways *)
-        (* but still push down the effect *)
-        let '(exist _ e_norm He_norm) := F e' in
-        exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
-      | Some (ev_arrow asp_fwd in_sig out_sig) =>
-        match asp_fwd with
-        | UNWRAP => (* okay, we maybe can normalize *)
-          match ATEB [Trail_UNWRAP asp_id] e' with
-          | err _ => (* couldn't reduce *)
-            let '(exist _ e_norm He_norm) := F e' in
-            match e_norm as e_norm' 
-              return e_norm = e_norm' -> _ 
-            with
-            | asp_evt p' (asp_paramsC asp_id' args' targp' targ' ) e'' =>
-                fun He_norm =>
-                match 
-                  in_sig, out_sig,
-                  (asp_types G) ![ asp_id' ], 
-                  (asp_comps G) ![ asp_id' ] 
-                with
-                | InAll, OutUnwrap,
-                  Some (ev_arrow WRAP InAll (OutN n)), 
-                  Some asp_id_comp => 
-                    exist _ e'' _
-                | _, _, _, _ => exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-                end
-            | _ => 
-              fun He_norm =>
-              exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-            end eq_refl
-          | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-            exist _ e'res _
-          end
-        | _ => (* can't reduce at top-level, just push down *)
-          let '(exist _ e_norm He_norm) := F e' in
-          exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
-        end
-      end
-    end
-  ).
-Proof.
-all: 
-  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev' _ G ev)) <= EvidenceT_depth ev) 
-    by (intros ev; destruct (normalize_ev' _ G ev); ff);
-  try (ff l; fail);
-  try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
-Defined.
-*)
-
 Equations? normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
     : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e } :=
-  normalize_ev G e := 
+  normalize_ev G mt_evt := exist _ mt_evt (Nat.le_refl _);
+  normalize_ev G (nonce_evt n) := exist _ (nonce_evt n) (Nat.le_refl _);
+  normalize_ev G (left_evt e') :=
     let F := normalize_ev G in
     let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
-    match e with
-    | mt_evt => exist _ mt_evt (Nat.le_refl _)
-    | nonce_evt n => exist _ (nonce_evt n) (Nat.le_refl _)
-    | left_evt e' =>
-      match ATEB [Trail_LEFT] e' with
-      | err _ => (* couldn't reduce *)
-        let '(exist _ e_norm He_norm) := F e' in
-        match e_norm as enorm' return e_norm = enorm' -> _ with
-        | split_evt l r => fun Henorm => exist _ l _
-        | _ => fun Henorm => exist _ (left_evt e_norm) _
-        end eq_refl
-      | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-        exist _ e'res _
-      end
-    | right_evt e' =>
-      match ATEB [Trail_RIGHT] e' with
-      | err _ => (* couldn't reduce *)
-        let '(exist _ e_norm He_norm) := F e' in
-        match e_norm as enorm' return e_norm = enorm' -> _ with
-        | split_evt l r => fun Henorm => exist _ r _
-        | _ => fun Henorm => exist _ (right_evt e_norm) _
-        end eq_refl
-      | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-        exist _ e'res _
-      end
-    | split_evt l r =>
-      let '(exist _ l_norm Hl_norm) := F l in
-      let '(exist _ r_norm Hr_norm) := F r in
-      exist _ (split_evt l_norm r_norm) _
-    | asp_evt p (asp_paramsC asp_id args targ_plc targ) e' =>
-      match ((asp_types G) ![ asp_id ]) with
-      | None => (* couldn't top-level reduce anyways *)
-        (* but still push down the effect *)
-        let '(exist _ e_norm He_norm) := F e' in
-        exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
-      | Some (ev_arrow asp_fwd in_sig out_sig) =>
-        match asp_fwd with
-        | UNWRAP => (* okay, we maybe can normalize *)
-          match ATEB [Trail_UNWRAP asp_id] e' with
-          | err _ => (* couldn't reduce *)
-            let '(exist _ e_norm He_norm) := F e' in
-            match e_norm as e_norm' 
-              return e_norm = e_norm' -> _ 
-            with
-            | asp_evt p' (asp_paramsC asp_id' args' targp' targ' ) e'' =>
-                fun He_norm =>
-                match 
-                  in_sig, out_sig,
-                  (asp_types G) ![ asp_id' ], 
-                  (asp_comps G) ![ asp_id' ] 
-                with
-                | InAll, OutUnwrap,
-                  Some (ev_arrow WRAP InAll (OutN n)), 
-                  Some asp_id_comp => 
-                    exist _ e'' _
-                | _, _, _, _ => exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-                end
-            | _ => 
-              fun He_norm =>
-              exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-            end eq_refl
-          | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-            exist _ e'res _
-          end
-        | _ => (* can't reduce at top-level, just push down *)
-          let '(exist _ e_norm He_norm) := F e' in
-          exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
-        end
-      end
-    end.
-Proof.
-all: 
-  try (clear F ATEB normalize_ev; lia);
-  Control.enter (fun () => 
-    subst F ATEB;
-    set (ev_res := normalize_ev _ G e'); 
-    clearbody ev_res; clear normalize_ev;
-    destruct ev_res; simpl in *; try lia
-  ).
-Defined.
-(* Qed.
-- 
-clear F ATEB normalize_ev.
-all: 
-  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev _ G ev)) <= EvidenceT_depth ev) 
-    by (intros ev; destruct (normalize_ev _ G ev); ff);
-  try (ff l; fail);
-  try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
-Defined. *)
-Opaque normalize_ev.
-
-(* 
-Axiom hammer : False.
-
-Equations? normalize_ev'' (HDA : DecEq ASP_ID) (G : GlobalContext) (e : EvidenceT) 
-    : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e } :=
-  normalize_ev'' HDA G mt_evt := exist _ mt_evt (Nat.le_refl _);
-  normalize_ev'' HDA G (nonce_evt n) := exist _ (nonce_evt n) (Nat.le_refl _);
-  normalize_ev'' HDA G (left_evt e') := 
-    match @apply_to_evidence_below_dep (fun e => { e'' : EvidenceT | EvidenceT_depth e'' <= EvidenceT_depth e }) _ result_transfer_depth G (normalize_ev'' HDA G) [Trail_LEFT] e' with
+    match ATEB [Trail_LEFT] e' with
     | err _ => (* couldn't reduce *)
-      let '(exist _ e_norm He_norm) := normalize_ev'' HDA G e' in
+      let '(exist _ e_norm He_norm1) := F e' in
       match e_norm as enorm' return e_norm = enorm' -> _ with
       | split_evt l r => fun Henorm => exist _ l _
-      | _ => fun Henorm => exist _ (left_evt e_norm) _
+      | _ => fun Henorm => exist _ (left_evt e_norm) (le_n_S _ _ He_norm1)
       end eq_refl
     | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
       exist _ e'res _
     end;
-  normalize_ev'' HDA G (right_evt e') :=
-    let F := @normalize_ev'' HDA G in
-    let ATEB := @apply_to_evidence_below_dep (fun e => { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }) _ result_transfer_depth G F in
+  normalize_ev G (right_evt e') :=
+    let F := normalize_ev G in
+    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     match ATEB [Trail_RIGHT] e' with
     | err _ => (* couldn't reduce *)
       let '(exist _ e_norm He_norm) := F e' in
       match e_norm as enorm' return e_norm = enorm' -> _ with
       | split_evt l r => fun Henorm => exist _ r _
-      | _ => fun Henorm => exist _ (right_evt e_norm) _
+      | _ => fun Henorm => exist _ (right_evt e_norm) (le_n_S _ _ He_norm)
       end eq_refl
     | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
       exist _ e'res _
     end;
-  normalize_ev'' HDA G (split_evt l r) :=
-    let F := @normalize_ev'' HDA G in
-    let ATEB := @apply_to_evidence_below_dep (fun e => { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }) _ result_transfer_depth G F in
+  normalize_ev G (split_evt l r) :=
+    let F := normalize_ev G in
+    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     let '(exist _ l_norm Hl_norm) := F l in
     let '(exist _ r_norm Hr_norm) := F r in
     exist _ (split_evt l_norm r_norm) _;
-  normalize_ev'' HDA G (asp_evt p (asp_paramsC asp_id args targ_plc targ) e') :=
-    let F := normalize_ev'' HDA G in
-    let ATEB := @apply_to_evidence_below_dep (fun e => { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }) _ result_transfer_depth G F in
+  normalize_ev G (asp_evt p (asp_paramsC asp_id args targ_plc targ) e') :=
+    let F := normalize_ev G in
+    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     match ((asp_types G) ![ asp_id ]) with
     | None => (* couldn't top-level reduce anyways *)
       (* but still push down the effect *)
       let '(exist _ e_norm He_norm) := F e' in
-      exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
+      exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) (le_n_S _ _ He_norm)
     | Some (ev_arrow asp_fwd in_sig out_sig) =>
       match asp_fwd with
       | UNWRAP => (* okay, we maybe can normalize *)
@@ -292,7 +123,7 @@ Equations? normalize_ev'' (HDA : DecEq ASP_ID) (G : GlobalContext) (e : Evidence
             return e_norm = e_norm' -> _ 
           with
           | asp_evt p' (asp_paramsC asp_id' args' targp' targ' ) e'' =>
-              fun He_norm =>
+              fun He_norm' =>
               match 
                 in_sig, out_sig,
                 (asp_types G) ![ asp_id' ], 
@@ -313,70 +144,21 @@ Equations? normalize_ev'' (HDA : DecEq ASP_ID) (G : GlobalContext) (e : Evidence
         end
       | _ => (* can't reduce at top-level, just push down *)
         let '(exist _ e_norm He_norm) := F e' in
-        exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) _
+        exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) 
+          (le_n_S _ _ He_norm)
       end
     end.
 Proof.
 all: 
-  assert (forall ev, EvidenceT_depth (proj1_sig (normalize_ev'' HDA G ev)) <= EvidenceT_depth ev) 
-    by (intros ev; destruct (normalize_ev'' HDA G ev); ff);
-  try (ff l; fail);
-  try (ff; erewrite <- Nat.succ_le_mono; ff; lia).
-Qed.
-
-Equations? normalize_ev (G : GlobalContext) (e : EvidenceT) 
-    : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e }
-    by wf (EvidenceT_depth e) :=
-  normalize_ev G mt_evt := exist _ mt_evt _;
-  normalize_ev G (nonce_evt n) := exist _ (nonce_evt n) _;
-  normalize_ev G (left_evt e') :=
-    let '(exist _ e_norm He_norm) := normalize_ev G e' in
-    exist _ 
-    (match e_norm with
-    | split_evt l r => l
-    | _ => left_evt e_norm
-    end) _;
-  normalize_ev G (right_evt e') :=
-    let '(exist _ e_norm He_norm) := normalize_ev G e' in
-    exist _
-    (match e_norm with
-    | split_evt l r => r
-    | _ => right_evt e_norm
-    end) _;
-  normalize_ev G (split_evt l r) :=
-    let '(exist _ l_norm Hl_norm) := normalize_ev G l in
-    let '(exist _ r_norm Hr_norm) := normalize_ev G r in
-    exist _ (split_evt l_norm r_norm) _;
-  normalize_ev G (asp_evt p par e') :=
-    let '(exist _ e_norm He_norm) := normalize_ev G e' in
-    match e_norm as e_norm' 
-      return e_norm = e_norm' -> _ 
-    with
-    | asp_evt p' par' e'' =>
-      fun He_norm =>
-      match par, par' with
-      | asp_paramsC aid args targp targ, asp_paramsC aid' args' targp' targ'' =>
-        match 
-          (asp_types G) ![ aid ], 
-          (asp_types G) ![ aid' ], 
-          (asp_comps G) ![ aid' ] 
-        with
-        | Some (ev_arrow UNWRAP InAll OutUnwrap), 
-          Some (ev_arrow WRAP InAll (OutN n)), 
-          Some aid_comp => 
-            let '(exist _ n_e'' Hn_e'') := normalize_ev G e'' in
-            exist _ n_e'' _
-        | _, _, _ => exist _ (asp_evt p par e_norm) _
-        end
-      end
-    | _ => fun _ => exist _ (asp_evt p par e_norm) _
-    end eq_refl.
-Proof.
-all: try lia.
-- destruct e_norm; ff l.
-- destruct e_norm; ff l.
-Qed.
-*)
+  try (clear F ATEB normalize_ev; lia);
+  Control.enter (fun () => 
+    subst F ATEB;
+    set (ev_res := normalize_ev _ G e'); 
+    clearbody ev_res; clear normalize_ev;
+    destruct ev_res; simpl in *; try lia
+  ).
+Defined.
+Opaque normalize_ev.
 
 Module TestNormalizeEv.
 
@@ -499,6 +281,12 @@ Proof.
   induction e using (Evidence_subterm_path_Ind_special G); 
   intros; try (ff; fail);
   ltac1:(simp normalize_ev in *).
+  - ff u, l; erewrite <- IHe in Heqr0; ff.
+  - ff u, l.
+    * Search (apply_to_evidence_below).
+      ateb_simp.
+      eapply apply_to_evidence_below_res_spec in Heqr.
+
   - ff; try (erewrite (IHe _ eq_refl); ff u, l).
   - ff.
     * ff u.
