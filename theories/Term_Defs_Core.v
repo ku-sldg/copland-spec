@@ -181,6 +181,119 @@ Inductive Evidence_Subterm_path `{DecEq ASP_ID} (G : GlobalContext)
   Evidence_Subterm_path G e' trails e2 ->
   Evidence_Subterm_path G e' (Trail_RIGHT :: trails) (split_evt e1 e2).
 
+Lemma Evidence_Subterm_path_never_grows : forall `{HD : DecEq ASP_ID} G e' l e,
+  Evidence_Subterm_path G e' l e ->
+  EvidenceT_depth e' <= EvidenceT_depth e.
+Proof.
+  intros; 
+  prep_induction H; induction H; 
+  ff l.
+Qed.
+
+Lemma Evidence_Subterm_path_nil : forall `{HD : DecEq ASP_ID} G e e',
+  Evidence_Subterm_path G e' nil e ->
+  e = e'.
+Proof.
+  intros; 
+  prep_induction H; induction H; 
+  intros; eauto; try congruence; ff.
+Qed.
+
+Lemma Evidence_Subterm_path_depth_cons : forall `{HD : DecEq ASP_ID} G h t e e',
+  Evidence_Subterm_path G e' (h :: t) e ->
+  EvidenceT_depth e' < EvidenceT_depth e.
+Proof.
+  intros.
+  prep_induction H.
+  induction H; intros; try congruence; subst; ff u, l;
+  destruct t > [
+    find_eapply_lem_hyp Evidence_Subterm_path_nil; ff l
+    |
+    pp (IHEvidence_Subterm_path _ _ eq_refl); ff l
+  ].
+Qed.
+
+Lemma Evidence_Subterm_path_depth : forall `{HD : DecEq ASP_ID} G l e e',
+  Evidence_Subterm_path G e' l e ->
+  EvidenceT_depth e' <= EvidenceT_depth e.
+Proof.
+  intros.
+  destruct l.
+  - find_eapply_lem_hyp Evidence_Subterm_path_nil; ff l.
+  - find_eapply_lem_hyp Evidence_Subterm_path_depth_cons; ff l.
+Qed.
+
+Theorem Evidence_subterm_path_Ind_special `{DecEq ASP_ID} G (P : EvidenceT -> Prop)
+  (f_mt : P mt_evt)
+  (f_nonce : forall n, P (nonce_evt n))
+  (f_subterm_asp_nowrap : forall p aid args targp targ e t isig osig,
+    t <> UNWRAP ->
+    lookup aid (asp_types G) = Some (ev_arrow t isig osig) ->
+    P e -> 
+    P (asp_evt p (asp_paramsC aid args targp targ) e))
+  (f_subterm_asp : forall p aid args targp targ e isig osig, 
+    lookup aid (asp_types G) = Some (ev_arrow UNWRAP isig osig) ->
+    (forall l e', Evidence_Subterm_path G e' (Trail_UNWRAP aid :: l) e -> P e') ->
+    P (asp_evt p (asp_paramsC aid args targp targ) e))
+  (f_subterm_asp_none : forall p aid args targp targ e,
+    lookup aid (asp_types G) = None ->
+    P (asp_evt p (asp_paramsC aid args targp targ) e))
+  (f_subterm_left : forall e, 
+    (forall e' l, Evidence_Subterm_path G e' (Trail_LEFT :: l) e -> P e') -> P (left_evt e))
+  (f_subterm_right : forall e, 
+    (forall e' l, Evidence_Subterm_path G e' (Trail_RIGHT :: l) e -> P e') -> P (right_evt e))
+  (f_split : forall e1 e2, P e1 -> P e2 -> P (split_evt e1 e2))
+  : forall e, P e.
+Proof.
+  assert (forall x : EvidenceT, (forall y : EvidenceT, (fun e1 e2 => EvidenceT_depth e1 < EvidenceT_depth e2) y x -> P y) -> P x). {
+    intros x F; destruct x eqn:?; eauto.
+    - destruct a.
+      destruct (lookup a (asp_types G)) eqn:?; eauto;
+      destruct e0, f; eauto.
+      * eapply f_subterm_asp_nowrap; eauto; congruence.
+      * eapply f_subterm_asp_nowrap; eauto; congruence.
+      * eapply f_subterm_asp; eauto; intros.
+        eapply F.
+        find_eapply_lem_hyp Evidence_Subterm_path_depth; eauto.
+        simpl in *; lia.
+      * eapply f_subterm_asp_nowrap; eauto; congruence.
+      (* eapply f. *)
+      (* ff; try (exfalso; eauto; fail). *)
+      (* eapply f_subterm; intros;
+      ff; try (exfalso; eauto; fail).
+      clear f_subterm f_mt f_split f_nonce.
+      induction l.
+      * destruct e' eqn:?; simpl in *; eexists; 
+        split; try reflexivity. *)
+      (* eapply F.
+      eapply apply_to_evidence_below_res with (fn2 := id) in Heqr as ?. *)
+    - 
+      eapply f_subterm_left; intros.
+      eapply F.
+        find_eapply_lem_hyp Evidence_Subterm_path_depth; eauto.
+        simpl in *; lia.
+      (* eapply f_subterm; intros;
+      ff; try (exfalso; eauto; fail). *)
+      (* eapply F. *)
+    - 
+      eapply f_subterm_right; intros.
+      eapply F.
+        find_eapply_lem_hyp Evidence_Subterm_path_depth; eauto.
+        simpl in *; lia.
+      (* eapply f_subterm; intros;
+      ff; try (exfalso; eauto; fail). *)
+      (* eapply F. *)
+    - eapply f_split; eapply F;
+      simpl in *; try lia.
+  } 
+  assert (well_founded (fun e1 e2 => EvidenceT_depth e1 < EvidenceT_depth e2)). {
+    simpl in *.
+    eapply Wf_nat.well_founded_ltof.
+  }
+  eapply well_founded_ind; eauto.
+Qed.
+
+
 Definition Evidence_Subterm_path_fix `{DecEq ASP_ID} (G : GlobalContext) (e' : EvidenceT)
     : list EvTrails -> EvidenceT -> Prop :=
   fix F trails e :=
@@ -262,484 +375,10 @@ Proof.
   lia.
 Qed.
 
-From Equations Require Import Equations.
-
-(* Equations? apply_to_evidence_below_dep {A} `{DecEq ASP_ID} (G : GlobalContext)
-    (f : forall e : EvidenceT, A e)
-    (trails : list EvTrails) (e : EvidenceT) :
-      Result 
-        ({ e' 
-          & { v : A e' | f e' = v & Evidence_Subterm_path G e' trails e}
-          }) 
-        string :=
-apply_to_evidence_below_dep G f trails mt_evt :=
-  match trails as orig_trails 
-    return trails = orig_trails -> _ with
-  | nil => 
-    fun Htrails =>
-    res (existT _ mt_evt (exist2 _ _ (f mt_evt) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    err err_str_no_evidence_below
-  end eq_refl;
-apply_to_evidence_below_dep G f trails (nonce_evt n) :=
-  match trails as orig_trails 
-    return trails = orig_trails -> _ with
-  | nil => 
-    fun Htrails =>
-    res (existT _ (nonce_evt n) (exist2 _ _ (f (nonce_evt n)) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    err err_str_no_evidence_below
-  end eq_refl;
-apply_to_evidence_below_dep G f trails (asp_evt _ (asp_paramsC top_id _ _ _) et') 
-  := 
-  match trails as orig_trails
-    return trails = orig_trails -> _ with
-  | nil => (* no further trail to follow! *)
-    fun Htrails =>
-    res (existT _ (asp_evt _ (asp_paramsC top_id _ _ _) et') 
-      (exist2 _ _ (f (asp_evt _ (asp_paramsC top_id _ _ _) et')) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    match ((asp_types G) ![ top_id ]) as asp_type 
-      return ((asp_types G) ![ top_id ]) = asp_type -> _ with
-    | None => 
-      fun Hasp_type1 =>
-      err err_str_asp_no_type_sig
-    | Some (ev_arrow UNWRAP in_sig out_sig) =>
-      fun Hasp_type2 =>
-      (* we are UNWRAP, so add to trail and continue *)
-      match (apply_to_evidence_below_dep G f ((Trail_UNWRAP top_id) :: trails) et') with
-      | err e => err e
-      | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-        res (existT _ e' (exist2 _ _ v fv _))
-      end
-
-    | Some (ev_arrow WRAP in_sig out_sig) =>
-      fun Hasp_type3 =>
-      (* we are a WRAP, better be the case we are looking for one *)
-      match trail as trail' 
-        return trail = trail' -> _ with
-      | Trail_UNWRAP unwrap_id => 
-        fun Htrail =>
-        match ((asp_comps G) ![ top_id ]) as asp_comp 
-          return ((asp_comps G) ![ top_id ]) = asp_comp -> _ with
-        | None => 
-          fun Hasp_comp1 =>
-          err err_str_asp_no_compat_appr_asp
-        | Some test_unwrapping_id =>
-          fun Hasp_comp2 =>
-          if (DecEq.dec_eq test_unwrapping_id unwrap_id) 
-          then (* they are compatible so we can continue on smaller *)
-            match (apply_to_evidence_below_dep G f trails' et') with
-            | err e => err e
-            | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-              res (existT _ e' (exist2 _ _ v fv _))
-            end
-          else (* they are not compatible, this is a massive error *)
-            err err_str_wrap_asp_not_duals
-        end
-        eq_refl
-      | _ => fun Htrail => err err_str_trail_mismatch
-      end
-      eq_refl
-
-    | Some (ev_arrow _ in_sig out_sig) =>
-      fun Hasp_type4 =>
-      (* we are neither WRAP or UNWRAP, so this is an error *)
-      err err_str_asp_at_bottom_not_wrap
-    end
-    eq_refl
-  end eq_refl;
-apply_to_evidence_below_dep G f trails (left_evt et') :=
-  match trails as orig_trails
-    return trails = orig_trails -> _ with
-  | nil => (* no further trail to follow! *)
-    fun Htrails =>
-    res (existT _ (left_evt et') 
-      (exist2 _ _ (f (left_evt et')) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    match (apply_to_evidence_below_dep G f (Trail_LEFT :: trails) et') with
-    | err e => err e
-    | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-      res (existT _ e' (exist2 _ _ v fv _))
-    end
-  end eq_refl;
-apply_to_evidence_below_dep G f trails (right_evt et') :=
-  match trails as orig_trails
-    return trails = orig_trails -> _ with
-  | nil => (* no further trail to follow! *)
-    fun Htrails =>
-    res (existT _ (right_evt et') 
-      (exist2 _ _ (f (right_evt et')) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    match (apply_to_evidence_below_dep G f (Trail_RIGHT :: trails) et') with
-    | err e => err e
-    | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-      res (existT _ e' (exist2 _ _ v fv _))
-    end
-  end eq_refl;
-apply_to_evidence_below_dep G f trails (split_evt e1 e2) :=
-  match trails as orig_trails
-    return trails = orig_trails -> _ with
-  | nil => (* no further trail to follow! *)
-    fun Htrails =>
-    res (existT _ (split_evt e1 e2) 
-      (exist2 _ _ (f (split_evt e1 e2)) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    match trail with
-    | Trail_LEFT => 
-      match (apply_to_evidence_below_dep G f trails' e1) with
-      | err e => err e
-      | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-        res (existT _ e' (exist2 _ _ v fv _))
-      end
-    | Trail_RIGHT => 
-      match (apply_to_evidence_below_dep G f trails' e2) with
-      | err e => err e
-      | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-        res (existT _ e' (exist2 _ _ v fv _))
-      end
-    | _ => err err_str_trail_mismatch
-    end
-  end eq_refl.
-all: clear f apply_to_evidence_below_dep.
-- eapply esp_wrap; ff.
-- eapply esp_unwrap; ff.
-- eapply esp_left; ff.
-- eapply esp_right; ff.
-- eapply esp_split_l; ff.
-- eapply esp_split_r; ff.
-Defined. *)
-
-Equations? apply_to_evidence_below_dep {A} `{DecEq ASP_ID} (G : GlobalContext)
-    (f : forall e : EvidenceT, A e)
-    (trails : list EvTrails) (e : EvidenceT) :
-      Result ({ e' & { v : A e' & Evidence_Subterm_path G e' trails e }}) string :=
-  apply_to_evidence_below_dep G f trails mt_evt :=
-    match trails as orig_trails 
-      return trails = orig_trails -> _ with
-    | nil => 
-      fun Htrails =>
-      res (existT _ mt_evt (existT _ (f mt_evt) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      err err_str_no_evidence_below
-    end eq_refl;
-  apply_to_evidence_below_dep G f trails (nonce_evt n) :=
-    match trails as orig_trails 
-      return trails = orig_trails -> _ with
-    | nil => 
-      fun Htrails =>
-      res (existT _ (nonce_evt n) (existT _ (f (nonce_evt n)) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      err err_str_no_evidence_below
-    end eq_refl;
-  apply_to_evidence_below_dep G f trails (asp_evt _ (asp_paramsC top_id _ _ _) et') 
-    := 
-    match trails as orig_trails
-      return trails = orig_trails -> _ with
-    | nil => (* no further trail to follow! *)
-      fun Htrails =>
-      res (existT _ (asp_evt _ (asp_paramsC top_id _ _ _) et') (existT _ (f (asp_evt _ (asp_paramsC top_id _ _ _) et')) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      match ((asp_types G) ![ top_id ]) as asp_type 
-        return ((asp_types G) ![ top_id ]) = asp_type -> _ with
-      | None => 
-        fun Hasp_type1 =>
-        err err_str_asp_no_type_sig
-      | Some (ev_arrow UNWRAP in_sig out_sig) =>
-        fun Hasp_type2 =>
-        (* we are UNWRAP, so add to trail and continue *)
-        match (apply_to_evidence_below_dep G f ((Trail_UNWRAP top_id) :: trails) et') with
-        | err e => err e
-        | res (existT _ e' (existT _ v esp_e')) =>
-          res (existT _ e' (existT _ v _))
-        end
-
-      | Some (ev_arrow WRAP in_sig out_sig) =>
-        fun Hasp_type3 =>
-        (* we are a WRAP, better be the case we are looking for one *)
-        match trail as trail' 
-          return trail = trail' -> _ with
-        | Trail_UNWRAP unwrap_id => 
-          fun Htrail =>
-          match ((asp_comps G) ![ top_id ]) as asp_comp 
-            return ((asp_comps G) ![ top_id ]) = asp_comp -> _ with
-          | None => 
-            fun Hasp_comp1 =>
-            err err_str_asp_no_compat_appr_asp
-          | Some test_unwrapping_id =>
-            fun Hasp_comp2 =>
-            if (DecEq.dec_eq test_unwrapping_id unwrap_id) 
-            then (* they are compatible so we can continue on smaller *)
-              match (apply_to_evidence_below_dep G f trails' et') with
-              | err e => err e
-              | res (existT _ e' (existT _ v esp_e')) =>
-                res (existT _ e' (existT _ v _))
-              end
-            else (* they are not compatible, this is a massive error *)
-              err err_str_wrap_asp_not_duals
-          end
-          eq_refl
-        | _ => fun Htrail => err err_str_trail_mismatch
-        end
-        eq_refl
-
-      | Some (ev_arrow _ in_sig out_sig) =>
-        fun Hasp_type4 =>
-        (* we are neither WRAP or UNWRAP, so this is an error *)
-        err err_str_asp_at_bottom_not_wrap
-      end
-      eq_refl
-    end eq_refl;
-  apply_to_evidence_below_dep G f trails (left_evt et') :=
-    match trails as orig_trails
-      return trails = orig_trails -> _ with
-    | nil => (* no further trail to follow! *)
-      fun Htrails =>
-      res (existT _ (left_evt et') (existT _ (f (left_evt et')) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      match (apply_to_evidence_below_dep G f (Trail_LEFT :: trails) et') with
-      | err e => err e
-      | res (existT _ e' (existT _ v esp_e')) =>
-        res (existT _ e' (existT _ v _))
-      end
-    end eq_refl;
-  apply_to_evidence_below_dep G f trails (right_evt et') :=
-    match trails as orig_trails
-      return trails = orig_trails -> _ with
-    | nil => (* no further trail to follow! *)
-      fun Htrails =>
-      res (existT _ (right_evt et') (existT _ (f (right_evt et')) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      match (apply_to_evidence_below_dep G f (Trail_RIGHT :: trails) et') with
-      | err e => err e
-      | res (existT _ e' (existT _ v esp_e')) =>
-        res (existT _ e' (existT _ v _))
-      end
-    end eq_refl;
-  apply_to_evidence_below_dep G f trails (split_evt e1 e2) :=
-    match trails as orig_trails
-      return trails = orig_trails -> _ with
-    | nil => (* no further trail to follow! *)
-      fun Htrails =>
-      res (existT _ (split_evt e1 e2) (existT _ (f (split_evt e1 e2)) (esp_empty_trail _ _)))
-    | trail :: trails' =>
-      fun Htrails =>
-      match trail with
-      | Trail_LEFT => 
-        match (apply_to_evidence_below_dep G f trails' e1) with
-        | err e => err e
-        | res (existT _ e' (existT _ v esp_e')) =>
-          res (existT _ e' (existT _ v _))
-        end
-      | Trail_RIGHT => 
-        match (apply_to_evidence_below_dep G f trails' e2) with
-        | err e => err e
-        | res (existT _ e' (existT _ v esp_e')) =>
-          res (existT _ e' (existT _ v _))
-        end
-      | _ => err err_str_trail_mismatch
-      end
-    end eq_refl.
-  all: clear f apply_to_evidence_below_dep.
-  - eapply esp_wrap; ff.
-  - eapply esp_unwrap; ff.
-  - eapply esp_left; ff.
-  - eapply esp_right; ff.
-  - eapply esp_split_l; ff.
-  - eapply esp_split_r; ff.
-Qed.
-
-Theorem ateb_dep_res : forall `{DecEq ASP_ID} (G : GlobalContext)
-    (A : EvidenceT -> Type)
-    (f : forall e : EvidenceT, A e)
-    (l : list EvTrails) (e e' : EvidenceT) (v : A e') p,
-  apply_to_evidence_below_dep G f l e = res (existT _ e' (existT _ v p)) ->
-  f e' = v.
-Proof.
-  intros.
-  ltac1:(funelim (apply_to_evidence_below_dep G f l e)).
-  - ff.
-    eapply inj_right_pair in H0; ff.
-  - ff.
-    eapply inj_right_pair in H0; ff.
-  - ff.
-    * eapply inj_right_pair in H0; ff.
-    * destruct (asp_types G).
-
-  ltac1:(functional_induction apply_to_evidence_below_dep G f l e).
-  induction e; ff.
-  - ltac1:(simp apply_to_evidence_below_dep in *); ff.
-    eapply inj_right_pair in H0; ff.
-  - ltac1:(simp apply_to_evidence_below_dep in *); ff.
-    eapply inj_right_pair in H0; ff.
-  - destruct a.
-    ltac1:(simp apply_to_evidence_below_dep in *); ff.
-    * eapply inj_right_pair in H0; ff.
-    * 
-
-(* Definition apply_to_evidence_below_dep {A} `{DecEq ASP_ID} (G : GlobalContext)
-    (f : forall e : EvidenceT, A e)
-    : forall (l : list EvTrails) (e : EvidenceT), 
-      Result 
-        ({ e' 
-          & { v : A e' | f e' = v & Evidence_Subterm_path G e' l e}
-          }) 
-        string.
-  ref (
-  fix F trails e :=
-  match trails as orig_trails
-    return trails = orig_trails -> _ with
-  | nil => (* no further trail to follow! *)
-    fun Htrails =>
-    res (existT _ e (exist2 _ _ (f e) eq_refl (esp_empty_trail _ _)))
-  | trail :: trails' =>
-    fun Htrails =>
-    match e with
-    | mt_evt => 
-      err err_str_no_evidence_below
-    | nonce_evt _ => 
-      err err_str_no_evidence_below
-
-    | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
-      match ((asp_types G) ![ top_id ]) as asp_type 
-        return ((asp_types G) ![ top_id ]) = asp_type -> _ with
-      | None => 
-        fun Hasp_type1 =>
-        err err_str_asp_no_type_sig
-      | Some (ev_arrow UNWRAP in_sig out_sig) =>
-        fun Hasp_type2 =>
-        (* we are UNWRAP, so add to trail and continue *)
-        match (F ((Trail_UNWRAP top_id) :: trails) et') with
-        | err e => err e
-        | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-          res (existT _ e' (exist2 _ _ v fv _))
-        end
-
-      | Some (ev_arrow WRAP in_sig out_sig) =>
-        fun Hasp_type3 =>
-        (* we are a WRAP, better be the case we are looking for one *)
-        match trail as trail' 
-          return trail = trail' -> _ with
-        | Trail_UNWRAP unwrap_id => 
-          fun Htrail =>
-          match ((asp_comps G) ![ top_id ]) as asp_comp 
-            return ((asp_comps G) ![ top_id ]) = asp_comp -> _ with
-          | None => 
-            fun Hasp_comp1 =>
-            err err_str_asp_no_compat_appr_asp
-          | Some test_unwrapping_id =>
-            fun Hasp_comp2 =>
-            if (dec_eq test_unwrapping_id unwrap_id) 
-            then (* they are compatible so we can continue on smaller *)
-              match (F trails' et') with
-              | err e => err e
-              | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-                res (existT _ e' (exist2 _ _ v fv _))
-              end
-              (* Amonotone _ _ ((Nat.lt_succ_diag_r _) : _ < EvidenceT_depth (asp_evt _ _ _)) *)
-            else (* they are not compatible, this is a massive error *)
-              err err_str_wrap_asp_not_duals
-          end
-          eq_refl
-        | _ => fun Htrail => err err_str_trail_mismatch
-        end
-        eq_refl
-
-      | Some (ev_arrow _ in_sig out_sig) =>
-        fun Hasp_type4 =>
-        (* we are neither WRAP or UNWRAP, so this is an error *)
-        err err_str_asp_at_bottom_not_wrap
-      end
-      eq_refl
-    | left_evt et' => 
-      (* we are pushing on a new left *)
-      match (F (Trail_LEFT :: trails) et') with
-      | err e => err e
-      | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-        res (existT _ e' (exist2 _ _ v fv _))
-      end
-
-    | right_evt et' => 
-      (* we are pushing on a new right *)
-      match (F (Trail_RIGHT :: trails) et') with
-      | err e => err e
-      | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-        res (existT _ e' (exist2 _ _ v fv _))
-      end
-
-    | split_evt e1 e2 => 
-      (* we are a split, depending on trail we will either go 
-      left or right and continue *)
-      match trail with
-      | Trail_LEFT => 
-        match (F trails' e1) with
-        | err e => err e
-        | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-          res (existT _ e' (exist2 _ _ v fv _))
-        end
-      | Trail_RIGHT => 
-        match (F trails' e2) with
-        | err e => err e
-        | res (existT _ e' (exist2 _ _ v fv esp_e')) =>
-          res (existT _ e' (exist2 _ _ v fv _))
-        end
-      | _ => err err_str_trail_mismatch
-      end
-    end
-  end
-  eq_refl
-  ).
-Proof.
-all: clear F.
-- eapply esp_wrap; ff.
-  (* eapply esp_wrap > [ exact Hasp_type3 | exact Hasp_comp2 | exact esp_e' ]. *)
-- eapply esp_unwrap; ff.
-  (* eapply esp_unwrap > [ 
-    exact Hasp_type2 
-    | exact esp_e' 
-    | ref (fun HC => False_ind _ _) 
-  ].
-  congruence. *)
-- eapply esp_left; ff.
-  (* eapply esp_left > [
-    exact esp_e' 
-    | ref (fun HC => False_ind _ _) 
-  ].
-  congruence. *)
-- eapply esp_right; ff.
-  (* eapply esp_right > [
-    exact esp_e' 
-    | ref (fun HC => False_ind _ _) 
-  ].
-  congruence. *)
-- eapply esp_split_l.
-  exact esp_e'.
-- eapply esp_split_r.
-  exact esp_e'.
-Defined.
-Print apply_to_evidence_below_dep. *)
-
 Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext) 
-    (f : EvidenceT -> A) (l : list EvTrails) (e : EvidenceT)
-    : Result A string :=
-  (* This is a refinement of the strong case where the type {A} is not dependent *)
-  (match @apply_to_evidence_below_dep (fun _ => A) H G f l e 
-    in Result _ _ with
-  | err e => err e
-  | res (existT _ e (exist2 _ _ v fv _)) => res v
-  end).
-  (* fix F trails e :=
+    (f : EvidenceT -> A) 
+    : forall l e, Result A string :=
+  fix F trails e :=
   match trails with
   | nil => (* no further trail to follow! *)
     res (f e)
@@ -762,7 +401,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext)
           match ((asp_comps G) ![ top_id ]) with
           | None => err err_str_asp_no_compat_appr_asp
           | Some test_unwrapping_id =>
-            if (dec_eq test_unwrapping_id unwrap_id) 
+            if (DecEq.dec_eq test_unwrapping_id unwrap_id) 
             then (* they are compatible so we can continue on smaller *)
               F trails' et'
             else (* they are not compatible, this is a massive error *)
@@ -792,9 +431,8 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext)
       | _ => err err_str_trail_mismatch
       end
     end
-  end. *)
+  end.
 
-(*
 Definition Evidence_Subterm `{DecEq ASP_ID} G e' : EvidenceT -> Prop :=
   fix F e :=
   match e with
@@ -825,11 +463,10 @@ Definition Evidence_Subterm `{DecEq ASP_ID} G e' : EvidenceT -> Prop :=
   | split_evt e1 e2 => 
     e' = e1 \/ e' = e2 \/ F e1 \/ F e2
   end.
-*)
 
-(* Lemma apply_to_evidence_below_dep_res_spec : forall {A} G Amono 
-    (f : forall e, A e) e v l,
-  apply_to_evidence_below_dep G f l e = res v ->
+
+Lemma apply_to_evidence_below_res_spec : forall {A} G (f : _ -> A) e v l,
+  apply_to_evidence_below G f l e = res v ->
   (exists e', Evidence_Subterm_path G e' l e /\ f e' = v).
 Proof.
   induction e; simpl in *; intros; intuition; ff u.
@@ -846,44 +483,6 @@ Proof.
   - exists x; split; eauto; eapply esp_split_r; eauto;
     intros HC; invc HC; eauto.
 Qed.
- *)
-
-Lemma apply_to_evidence_below_res_spec : forall {A} G (f : _ -> A) e v l,
-  apply_to_evidence_below G f l e = res v ->
-  (exists e', Evidence_Subterm_path G e' l e /\ f e' = v).
-Proof.
-  intros.
-  unfold apply_to_evidence_below in *.
-  ff.
-Qed.
-(*
-  induction e; simpl in *; intros; intuition; ff u.
-  all: eauto using Evidence_Subterm_path; ff a.
-  - unfold apply_to_evidence_below in *; ff.
-  - unfold apply_to_evidence_below in *; ff.
-  - unfold apply_to_evidence_below in *.
-    destruct (apply_to_evidence_below_dep G f l (asp_evt p a e)) eqn:?.
-    * destruct s.
-      
-    * congruence.
-    repeat (break_match). 
-    subst.
-    invc H.
-    ff.
-    simpl in Heqr.
-    exists x; split; eauto; eapply esp_wrap; eauto.
-  - exists x; split; eauto; eapply esp_unwrap; eauto;
-    intros HC; invc HC; eauto.
-  - exists x; split; eauto; eapply esp_left; eauto;
-    intros HC; invc HC; eauto.
-  - exists x; split; eauto; eapply esp_right; eauto;
-    intros HC; invc HC; eauto.
-  - exists x; split; eauto; eapply esp_split_l; eauto;
-    intros HC; invc HC; eauto.
-  - exists x; split; eauto; eapply esp_split_r; eauto;
-    intros HC; invc HC; eauto.
-Qed.
-*)
 
 Lemma apply_to_evidence_below_nil : forall A G (f : _ -> A) e v,
   apply_to_evidence_below G f nil e = res v ->
@@ -891,7 +490,6 @@ Lemma apply_to_evidence_below_nil : forall A G (f : _ -> A) e v,
 Proof.
   destruct e; ff;
   unfold apply_to_evidence_below in *;
-  ltac1:(simp apply_to_evidence_below_dep in *); ff.
   destruct e; ff.
 Qed.
 
@@ -909,98 +507,6 @@ Lemma apply_to_evidence_below_errs_det : forall {A B} G (fn1 : _ -> A) (fn2 : _ 
   r1 = r2.
 Proof.
   induction e; ff u.
-Qed.
-
-Lemma evidence_subterm_path_nil : forall G e e',
-  Evidence_Subterm_path G e' nil e ->
-  e = e'.
-Proof.
-  intros; 
-  prep_induction H; induction H; 
-  intros; eauto; try congruence; ff.
-Qed.
-
-Lemma evidence_subterm_path_depth : forall G h t e e',
-  Evidence_Subterm_path G e' (h :: t) e ->
-  EvidenceT_depth e' < EvidenceT_depth e.
-Proof.
-  intros.
-  prep_induction H.
-  induction H; intros; try congruence; subst; ff u, l; 
-  destruct t > [
-    try (inv H); try (inv H1); ff l
-    |
-    pp (IHEvidence_Subterm_path _ _ eq_refl); ff l ].
-Qed.
-
-Theorem Evidence_subterm_path_Ind_special G (P : EvidenceT -> Prop)
-  (f_mt : P mt_evt)
-  (f_nonce : forall n, P (nonce_evt n))
-  (f_subterm_asp_nowrap : forall p aid args targp targ e t isig osig,
-    t <> UNWRAP ->
-    lookup aid (asp_types G) = Some (ev_arrow t isig osig) ->
-    P e -> 
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
-  (f_subterm_asp : forall p aid args targp targ e isig osig, 
-    lookup aid (asp_types G) = Some (ev_arrow UNWRAP isig osig) ->
-    (forall l e', Evidence_Subterm_path G e' (Trail_UNWRAP aid :: l) e -> P e') ->
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
-  (f_subterm_asp_none : forall p aid args targp targ e,
-    lookup aid (asp_types G) = None ->
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
-  (f_subterm_left : forall e, 
-    (forall e' l, Evidence_Subterm_path G e' (Trail_LEFT :: l) e -> P e') -> P (left_evt e))
-  (f_subterm_right : forall e, 
-    (forall e' l, Evidence_Subterm_path G e' (Trail_RIGHT :: l) e -> P e') -> P (right_evt e))
-  (f_split : forall e1 e2, P e1 -> P e2 -> P (split_evt e1 e2))
-  : forall e, P e.
-Proof.
-  assert (forall x : EvidenceT, (forall y : EvidenceT, (fun e1 e2 => EvidenceT_depth e1 < EvidenceT_depth e2) y x -> P y) -> P x). {
-    intros x F; destruct x eqn:?; eauto.
-    - destruct a.
-      destruct (lookup a (asp_types G)) eqn:?; eauto;
-      destruct e0, f; eauto.
-      * eapply f_subterm_asp_nowrap; eauto; congruence.
-      * eapply f_subterm_asp_nowrap; eauto; congruence.
-      * eapply f_subterm_asp; eauto; intros.
-        eapply F.
-        find_eapply_lem_hyp evidence_subterm_path_depth; eauto.
-        simpl in *; lia.
-      * eapply f_subterm_asp_nowrap; eauto; congruence.
-      (* eapply f. *)
-      (* ff; try (exfalso; eauto; fail). *)
-      (* eapply f_subterm; intros;
-      ff; try (exfalso; eauto; fail).
-      clear f_subterm f_mt f_split f_nonce.
-      induction l.
-      * destruct e' eqn:?; simpl in *; eexists; 
-        split; try reflexivity. *)
-      (* eapply F.
-      eapply apply_to_evidence_below_res with (fn2 := id) in Heqr as ?. *)
-    - 
-      eapply f_subterm_left; intros.
-      eapply F.
-        find_eapply_lem_hyp evidence_subterm_path_depth; eauto.
-        simpl in *; lia.
-      (* eapply f_subterm; intros;
-      ff; try (exfalso; eauto; fail). *)
-      (* eapply F. *)
-    - 
-      eapply f_subterm_right; intros.
-      eapply F.
-        find_eapply_lem_hyp evidence_subterm_path_depth; eauto.
-        simpl in *; lia.
-      (* eapply f_subterm; intros;
-      ff; try (exfalso; eauto; fail). *)
-      (* eapply F. *)
-    - eapply f_split; eapply F;
-      simpl in *; try lia.
-  } 
-  assert (well_founded (fun e1 e2 => EvidenceT_depth e1 < EvidenceT_depth e2)). {
-    simpl in *.
-    eapply Wf_nat.well_founded_ltof.
-  }
-  eapply well_founded_ind; eauto.
 Qed.
 
 (**  Calculate the size of an EvidenceT type *)

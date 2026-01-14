@@ -1,10 +1,9 @@
-From CoplandSpec Require Import Term_Defs_Core Term_Defs_Core_Typeclasses.
+From CoplandSpec Require Import 
+  Term_Defs_Core Term_Defs_Core_Typeclasses Event_System Term_Defs.
 From Equations Require Import Equations.
 
 (** EvidenceT equivalence relation *)
 Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
-(* | ev_red_mt : Evidence_Reduce G mt_evt mt_evt
-| ev_red_nonce : forall n, Evidence_Reduce G (nonce_evt n) (nonce_evt n) *)
 | ev_red_left : forall e1 e2,
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (left_evt e1) (left_evt e2)
@@ -69,121 +68,76 @@ Definition result_transfer_depth (e1 e2 : EvidenceT)
   | res (exist _ s Hs) => res (exist _ s (lt_le_transfer IHe1e2 Hs))
   end.
 
-Equations? normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
-    : { e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e } :=
-  normalize_ev G mt_evt := exist _ mt_evt (Nat.le_refl _);
-  normalize_ev G (nonce_evt n) := exist _ (nonce_evt n) (Nat.le_refl _);
+Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
+    : EvidenceT :=
+  normalize_ev G mt_evt := mt_evt;
+  normalize_ev G (nonce_evt n) := nonce_evt n;
   normalize_ev G (left_evt e') :=
-    let F := normalize_ev G in
-    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
-    match ATEB [Trail_LEFT] e' with
-    | err _ => (* couldn't reduce *)
-      let '(exist _ e_norm He_norm1) := F e' in
-      match e_norm as enorm' return e_norm = enorm' -> _ with
-      | split_evt l r => fun Henorm => exist _ l _
-      | _ => fun Henorm => exist _ (left_evt e_norm) (le_n_S _ _ He_norm1)
-      end eq_refl
-    | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-      exist _ e'res _
+    match (apply_to_evidence_below G (normalize_ev G)) [Trail_LEFT] e' with
+    | err _ => (* couldn't reduce *) left_evt e'
+    | res e'res => e'res
     end;
   normalize_ev G (right_evt e') :=
-    let F := normalize_ev G in
-    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
-    match ATEB [Trail_RIGHT] e' with
-    | err _ => (* couldn't reduce *)
-      let '(exist _ e_norm He_norm) := F e' in
-      match e_norm as enorm' return e_norm = enorm' -> _ with
-      | split_evt l r => fun Henorm => exist _ r _
-      | _ => fun Henorm => exist _ (right_evt e_norm) (le_n_S _ _ He_norm)
-      end eq_refl
-    | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-      exist _ e'res _
+    match (apply_to_evidence_below G (normalize_ev G)) [Trail_RIGHT] e' with
+    | err _ => (* couldn't reduce *) right_evt e'
+    | res e'res => e'res
     end;
-  normalize_ev G (split_evt l r) :=
-    let F := normalize_ev G in
-    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
-    let '(exist _ l_norm Hl_norm) := F l in
-    let '(exist _ r_norm Hr_norm) := F r in
-    exist _ (split_evt l_norm r_norm) _;
+  normalize_ev G (split_evt l r) := split_evt l r;
   normalize_ev G (asp_evt p (asp_paramsC asp_id args targ_plc targ) e') :=
-    let F := normalize_ev G in
-    let ATEB := (apply_to_evidence_below_dep result_transfer_depth G F) in
     match ((asp_types G) ![ asp_id ]) with
-    | None => (* couldn't top-level reduce anyways *)
-      (* but still push down the effect *)
-      let '(exist _ e_norm He_norm) := F e' in
-      exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) (le_n_S _ _ He_norm)
-    | Some (ev_arrow asp_fwd in_sig out_sig) =>
-      match asp_fwd with
-      | UNWRAP => (* okay, we maybe can normalize *)
-        match ATEB [Trail_UNWRAP asp_id] e' with
+    | Some (ev_arrow UNWRAP InAll OutUnwrap) =>
+        match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
         | err _ => (* couldn't reduce *)
-          let '(exist _ e_norm He_norm) := F e' in
-          match e_norm as e_norm' 
-            return e_norm = e_norm' -> _ 
-          with
-          | asp_evt p' (asp_paramsC asp_id' args' targp' targ' ) e'' =>
-              fun He_norm' =>
-              match 
-                in_sig, out_sig,
-                (asp_types G) ![ asp_id' ], 
-                (asp_comps G) ![ asp_id' ] 
-              with
-              | InAll, OutUnwrap,
-                Some (ev_arrow WRAP InAll (OutN n)), 
-                Some asp_id_comp => 
-                  exist _ e'' _
-              | _, _, _, _ => exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-              end
-          | _ => 
-            fun He_norm =>
-            exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) (proj1_sig (F e'))) _
-          end eq_refl
-        | res (exist _ e'res He'res) => (* we did reduce some, now do top-level *)
-          exist _ e'res _
+          asp_evt p (asp_paramsC asp_id args targ_plc targ) e'
+        | res e'res => e'res
         end
-      | _ => (* can't reduce at top-level, just push down *)
-        let '(exist _ e_norm He_norm) := F e' in
-        exist _ (asp_evt p (asp_paramsC asp_id args targ_plc targ) e_norm) 
-          (le_n_S _ _ He_norm)
-      end
+    | _ => (* can't reduce at top-level, just push down *)
+      asp_evt p (asp_paramsC asp_id args targ_plc targ) e'
     end.
+
+Theorem normalize_ev_measure_decrease : forall G e e',
+  normalize_ev G e = e' ->
+  EvidenceT_depth e' <= EvidenceT_depth e.
 Proof.
-all: 
-  try (clear F ATEB normalize_ev; lia);
-  Control.enter (fun () => 
-    subst F ATEB;
-    set (ev_res := normalize_ev _ G e'); 
-    clearbody ev_res; clear normalize_ev;
-    destruct ev_res; simpl in *; try lia
-  ).
-Defined.
-Opaque normalize_ev.
+  intros G.
+  induction e using (Evidence_subterm_path_Ind_special G);
+  ff; ltac1:(simp normalize_ev in * ); ff l.
+  - 
+    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
+    pp (H0 _ _ H1 _ eq_refl).
+    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
+  - 
+    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
+    pp (H _ _ H0 _ eq_refl).
+    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
+  - 
+    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
+    pp (H _ _ H0 _ eq_refl).
+    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
+Qed.
 
 Module TestNormalizeEv.
 
   Parameter G : GlobalContext.
 
-  Example test_normalize_ev1 : exists He, 
-    normalize_ev G (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) = exist _ (nonce_evt 1) He.
+  Example test_normalize_ev1 : 
+    normalize_ev G (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) = (nonce_evt 1).
   Proof.
     repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 
-  Example test_normalize_ev2 : exists He, 
-    normalize_ev G (left_evt (left_evt (split_evt (split_evt (nonce_evt 0) (nonce_evt 1)) (nonce_evt 2)))) = exist _ (nonce_evt 0) He.
+  Example test_normalize_ev2 : 
+    normalize_ev G (left_evt (left_evt (split_evt (split_evt (nonce_evt 0) (nonce_evt 1)) (nonce_evt 2)))) = (nonce_evt 0).
   Proof.
     intros.
     eexists.
-    ltac1:(simp normalize_ev).
-    reflexivity.
   Qed.
 
   Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
     (asp_comps G) ![ aid2 ] = Some aid1 ->
-    exists He, normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) mt_evt)) = exist _ mt_evt He.
+    normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) mt_evt)) = (mt_evt).
   Proof.
     intros.
     repeat (ltac1:(simp normalize_ev in *); ff).
@@ -209,11 +163,11 @@ Module TestNormalizeEv.
     (asp_types G) ![ aid4 ] = Some (ev_arrow WRAP InAll (OutN 1)) ->
     (asp_comps G) ![ aid3 ] = Some aid2 ->
     (asp_comps G) ![ aid4 ] = Some aid1 ->
-    exists He, normalize_ev G 
+    normalize_ev G 
       (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) 
         (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) 
           (asp_evt p3 (asp_paramsC aid3 args3 targp3 targ3) 
-            (asp_evt p4 (asp_paramsC aid4 args4 targp4 targ4) mt_evt)))) = exist _ mt_evt He.
+            (asp_evt p4 (asp_paramsC aid4 args4 targp4 targ4) mt_evt)))) = (mt_evt).
   Proof.
     intros.
     repeat (ltac1:(simp normalize_ev in *); ff).
@@ -221,7 +175,7 @@ Module TestNormalizeEv.
 End TestNormalizeEv.
 
 Definition Evidence_Equiv (G : GlobalContext) (e1 e2 : EvidenceT) : Prop :=
-  proj1_sig (normalize_ev G e1) = proj1_sig (normalize_ev G e2).
+  normalize_ev G e1 = normalize_ev G e2.
 
 Theorem Evidence_Equivalence : forall G,
   Equivalence (Evidence_Equiv G).
@@ -234,19 +188,18 @@ From RocqCandy Require Import All.
 Definition Evidence_Equiv_dec `{DecEq EvidenceT} (G : GlobalContext) 
     (e1 e2 : EvidenceT) 
     : { Evidence_Equiv G e1 e2 } + { ~ Evidence_Equiv G e1 e2 } :=
-  dec_eq (proj1_sig (normalize_ev G e1)) (proj1_sig (normalize_ev G e2)).
+  dec_eq (normalize_ev G e1) (normalize_ev G e2).
 
 Definition canon_ev_rep (G : GlobalContext) (e : EvidenceT) : EvidenceT :=
   (* The evidence value that minimizes the measure is the canon ev rep *)
-  proj1_sig (normalize_ev G e).
+  normalize_ev G e.
 
 Lemma canon_ev_canonical : forall G e e',
   canon_ev_rep G e = e' ->
   EvidenceT_depth e' <= EvidenceT_depth e.
 Proof.
   unfold canon_ev_rep.
-  intros.
-  destruct (normalize_ev G e); ff.
+  eapply normalize_ev_measure_decrease.
 Qed.
 
 (* Key Theorem: Equivalence implies Equal Canonical Representatives *)
@@ -268,13 +221,11 @@ Proof.
   ff.
 Qed.
 
-From CoplandSpec Require Import Event_System Term_Defs.
-
 (* Well-formedness *)
 (* We define well-defined under context Γ  *)
 
 Lemma normalize_preserves_size : forall G e e',
-  (proj1_sig (normalize_ev G e)) = e' ->
+  normalize_ev G e = e' ->
   et_size G e = et_size G e'.
 Proof.
   intros G.
@@ -282,29 +233,19 @@ Proof.
   intros; try (ff; fail);
   ltac1:(simp normalize_ev in *).
   - ff u, l; erewrite <- IHe in Heqr0; ff.
+  - ff u, l; ateb_simp; ff.
   - ff u, l.
-    * Search (apply_to_evidence_below).
-      ateb_simp.
-      eapply apply_to_evidence_below_res_spec in Heqr.
+  - ff u, l; ateb_simp; ff.
+  - ff u, l; ateb_simp; ff.
+Qed.
 
-  - ff; try (erewrite (IHe _ eq_refl); ff u, l).
-  - ff.
-    * ff u.
-      + admit.
-      + Search (apply_to_evidence_below).
-      ff u.
-      + ateb_simp.
-    simpl in *; intros; intuition; ff u, a;
-      ateb_simp; ff.
-      ateb_simp.
-
-    ; try (erewrite (IHe _ eq_refl); ff u, l).
-  - admit.
-  - subst.
-    ltac
-  - 
-  induction e; try (ff; fail); intros.
-  - ltac1:(simp normalize_ev in H).
+Corollary normalize_ev_preserves_size : forall G e,
+  et_size G e = et_size G (normalize_ev G e).
+Proof.
+  intros.
+  eapply normalize_preserves_size.
+  reflexivity.
+Qed.
 
 (* Key Theorem: Equivalence preserves well-formedness *)
 Theorem equiv_preserves_wf_ev : forall G e1 e2 bits,
@@ -315,9 +256,9 @@ Proof.
   intros.
   unfold Evidence_Equiv in *.
   invc H.
-  pp (wf_Evidence_c).
   econstructor.
-  destruct H as [bits Hwf].
-  invc Hwf.
-  induction Hwf.
-  induction H0.
+  econstructor.
+  erewrite normalize_ev_preserves_size.
+  find_eapply_lem_hyp normalize_preserves_size.
+  ff.
+Qed.
