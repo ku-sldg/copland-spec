@@ -22,12 +22,12 @@ Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (asp_evt p par e1) (asp_evt p par e2)
 | ev_red_asp_unwrap_wrap : 
-    forall p p' aid aid' args args' targp targp' targ targ' e' e'' n,
-    Evidence_Reduce G e' (asp_evt p' (asp_paramsC aid' args' targp' targ') e'') ->
+    forall p p' aid aid' args args' e' e'' n,
+    Evidence_Reduce G e' (asp_evt p' (asp_paramsC aid' args') e'') ->
     (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid' ] = Some (ev_arrow WRAP InAll (OutN n)) ->
     (asp_comps G) ![ aid' ] = Some aid ->
-    Evidence_Reduce G (asp_evt p (asp_paramsC aid args targp targ) e') e''.
+    Evidence_Reduce G (asp_evt p (asp_paramsC aid args) e') e''.
 
 Lemma evidence_reduce_measure_decrease : forall G e1 e2,
   Evidence_Reduce G e1 e2 ->
@@ -83,16 +83,16 @@ Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
     | res e'res => e'res
     end;
   normalize_ev G (split_evt l r) := split_evt l r;
-  normalize_ev G (asp_evt p (asp_paramsC asp_id args targ_plc targ) e') :=
+  normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
     match ((asp_types G) ![ asp_id ]) with
     | Some (ev_arrow UNWRAP InAll OutUnwrap) =>
         match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
         | err _ => (* couldn't reduce *)
-          asp_evt p (asp_paramsC asp_id args targ_plc targ) e'
+          asp_evt p (asp_paramsC asp_id args) e'
         | res e'res => e'res
         end
     | _ => (* can't reduce at top-level, just push down *)
-      asp_evt p (asp_paramsC asp_id args targ_plc targ) e'
+      asp_evt p (asp_paramsC asp_id args) e'
     end.
 
 Theorem normalize_ev_measure_decrease : forall G e e',
@@ -133,11 +133,11 @@ Module TestNormalizeEv.
     eexists.
   Qed.
 
-  Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
+  Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
     (asp_comps G) ![ aid2 ] = Some aid1 ->
-    normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) mt_evt)) = (mt_evt).
+    normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1) (asp_evt p2 (asp_paramsC aid2 args2) mt_evt)) = (mt_evt).
   Proof.
     intros.
     repeat (ltac1:(simp normalize_ev in *); ff).
@@ -156,7 +156,7 @@ Module TestNormalizeEv.
   Qed. *)
 
   Example test_normalize_ev4 : 
-    forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4 targp1 targp2 targp3 targp4 targ1 targ2 targ3 targ4,
+    forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid2 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
     (asp_types G) ![ aid3 ] = Some (ev_arrow WRAP InAll (OutN 1)) ->
@@ -164,10 +164,10 @@ Module TestNormalizeEv.
     (asp_comps G) ![ aid3 ] = Some aid2 ->
     (asp_comps G) ![ aid4 ] = Some aid1 ->
     normalize_ev G 
-      (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) 
-        (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) 
-          (asp_evt p3 (asp_paramsC aid3 args3 targp3 targ3) 
-            (asp_evt p4 (asp_paramsC aid4 args4 targp4 targ4) mt_evt)))) = (mt_evt).
+      (asp_evt p1 (asp_paramsC aid1 args1) 
+        (asp_evt p2 (asp_paramsC aid2 args2) 
+          (asp_evt p3 (asp_paramsC aid3 args3) 
+            (asp_evt p4 (asp_paramsC aid4 args4) mt_evt)))) = (mt_evt).
   Proof.
     intros.
     repeat (ltac1:(simp normalize_ev in *); ff).
@@ -231,12 +231,8 @@ Proof.
   intros G.
   induction e using (Evidence_subterm_path_Ind_special G); 
   intros; try (ff; fail);
-  ltac1:(simp normalize_ev in *).
-  - ff u, l; erewrite <- IHe in Heqr0; ff.
-  - ff u, l; ateb_simp; ff.
-  - ff u, l.
-  - ff u, l; ateb_simp; ff.
-  - ff u, l; ateb_simp; ff.
+  ltac1:(simp normalize_ev in *);
+  ff u, l; try (ateb_simp); ff.
 Qed.
 
 Corollary normalize_ev_preserves_size : forall G e,

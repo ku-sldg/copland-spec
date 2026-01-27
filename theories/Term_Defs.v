@@ -77,14 +77,14 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
       recurse on the underlying evidence that was not part of the extension.
   *)
   | asp_evt asp_top_plc ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     match (asp_types G) ![ asp_id ] with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow fwd in_sig out_sig) =>
       match (asp_comps G) ![ asp_id ] with
       | None => err err_str_asp_no_compat_appr_asp
       | Some appr_id =>
-        let dual_par := asp_paramsC appr_id args targ_plc targ in
+        let dual_par := asp_paramsC appr_id args in
         match fwd with
         | REPLACE => (* just apply the dual once *)
           res (asp_evt p dual_par ev_out)
@@ -158,7 +158,7 @@ Module Testing.
     appr_procedure G p (asp_evt p (enc_params p) (nonce_evt 1)) = 
     res (
       asp_evt p check_nonce_params (
-      asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid)
+      asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p))
         (asp_evt p (enc_params p) (nonce_evt 1)))
     ).
   Proof.
@@ -184,14 +184,14 @@ Module Testing.
     appr_procedure G p (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2))) = res (split_evt 
       (asp_evt p check_nonce_params 
         (left_evt 
-          (asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid) 
+          (asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p)) 
             (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2)))
           )
         )
       )
       (asp_evt p check_nonce_params 
         (right_evt 
-          (asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid) 
+          (asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p)) 
             (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2)))
           )
         )
@@ -210,7 +210,7 @@ Definition eval_asp `{DecEq ASP_ID} (G : GlobalContext) (a : ASP)
   match a with
   | NULL => res mt_evt
   | ASPC params =>
-    let '(asp_paramsC asp_id args targ_plc targ) := params in
+    let '(asp_paramsC asp_id args) := params in
     res (asp_evt p params e)
   | APPR => appr_procedure G p e
   | SIG => res (asp_evt p sig_params e)
@@ -228,7 +228,7 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
   | mt_evt => True
   | nonce_evt n => True
   | asp_evt asp_top_plc ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     lookup asp_id (asp_comps G) <> None /\
     (match ((asp_types G) ![ asp_id ]) with
     | None => False
@@ -298,7 +298,7 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
   | mt_evt => res 0
   | nonce_evt _ => res 1 (* [umeas check_nonce nonce] *)
   | asp_evt p par e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := par in
+    let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow asp_fwd in_sig out_sig) =>
@@ -383,11 +383,11 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
   | nonce_evt n => res [umeas i p check_nonce_params ev_out]
   (* (nonce_evt n)] *)
   | asp_evt p' ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     match ((asp_comps G) ![ asp_id ]) with
     | None => err err_str_asp_no_compat_appr_asp
     | Some appr_id => 
-      let dual_par := asp_paramsC appr_id args targ_plc targ in
+      let dual_par := asp_paramsC appr_id args in
       match ((asp_types G) ![ asp_id ]) with
       | None => err err_str_asp_no_type_sig
       | Some (ev_arrow fwd in_sig out_sig) =>

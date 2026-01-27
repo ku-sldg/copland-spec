@@ -42,7 +42,7 @@ Definition TARG_ID: Set := ID_Type.
 
 (** Grouping ASP parameters into one constructor *)
 Inductive ASP_PARAMS: Type :=
-| asp_paramsC: ASP_ID -> ASP_ARGS -> Plc -> TARG_ID -> ASP_PARAMS.
+| asp_paramsC: ASP_ID -> ASP_ARGS -> ASP_PARAMS.
 
 Inductive FWD :=
 | REPLACE
@@ -151,17 +151,17 @@ Inductive Evidence_Subterm_path `{DecEq ASP_ID} (G : GlobalContext)
     (e' : EvidenceT) : list EvTrails -> EvidenceT -> Prop :=
 | esp_empty_trail : Evidence_Subterm_path G e' nil e'
 
-| esp_unwrap : forall p in_sig out_sig e'' trails aid args targp targ,
+| esp_unwrap : forall p in_sig out_sig e'' trails aid args,
   lookup aid (asp_types G) = Some (ev_arrow UNWRAP in_sig out_sig) ->
   Evidence_Subterm_path G e' ((Trail_UNWRAP aid) :: trails) e'' ->
   trails <> nil ->
-  Evidence_Subterm_path G e' trails (asp_evt p (asp_paramsC aid args targp targ) e'')
+  Evidence_Subterm_path G e' trails (asp_evt p (asp_paramsC aid args) e'')
 
-| esp_wrap : forall p in_sig out_sig e'' trails aid args targp targ aid',
+| esp_wrap : forall p in_sig out_sig e'' trails aid args aid',
   lookup aid (asp_types G) = Some (ev_arrow WRAP in_sig out_sig) ->
   lookup aid (asp_comps G) = Some aid' ->
   Evidence_Subterm_path G e' trails e'' ->
-  Evidence_Subterm_path G e' ((Trail_UNWRAP aid') :: trails) (asp_evt p (asp_paramsC aid args targp targ) e'')
+  Evidence_Subterm_path G e' ((Trail_UNWRAP aid') :: trails) (asp_evt p (asp_paramsC aid args) e'')
 
 | esp_left : forall e'' trails,
   Evidence_Subterm_path G e' (Trail_LEFT :: trails) e'' ->
@@ -226,18 +226,18 @@ Qed.
 Theorem Evidence_subterm_path_Ind_special `{DecEq ASP_ID} G (P : EvidenceT -> Prop)
   (f_mt : P mt_evt)
   (f_nonce : forall n, P (nonce_evt n))
-  (f_subterm_asp_nowrap : forall p aid args targp targ e t isig osig,
+  (f_subterm_asp_nowrap : forall p aid args e t isig osig,
     t <> UNWRAP ->
     lookup aid (asp_types G) = Some (ev_arrow t isig osig) ->
     P e -> 
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
-  (f_subterm_asp : forall p aid args targp targ e isig osig, 
+    P (asp_evt p (asp_paramsC aid args) e))
+  (f_subterm_asp : forall p aid args e isig osig, 
     lookup aid (asp_types G) = Some (ev_arrow UNWRAP isig osig) ->
     (forall l e', Evidence_Subterm_path G e' (Trail_UNWRAP aid :: l) e -> P e') ->
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
-  (f_subterm_asp_none : forall p aid args targp targ e,
+    P (asp_evt p (asp_paramsC aid args) e))
+  (f_subterm_asp_none : forall p aid args e,
     lookup aid (asp_types G) = None ->
-    P (asp_evt p (asp_paramsC aid args targp targ) e))
+    P (asp_evt p (asp_paramsC aid args) e))
   (f_subterm_left : forall e, 
     (forall e' l, Evidence_Subterm_path G e' (Trail_LEFT :: l) e -> P e') -> P (left_evt e))
   (f_subterm_right : forall e, 
@@ -304,7 +304,7 @@ Definition Evidence_Subterm_path_fix `{DecEq ASP_ID} (G : GlobalContext) (e' : E
     | mt_evt => False
     | nonce_evt _ => False
 
-    | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
+    | asp_evt _ (asp_paramsC top_id args) et' => 
       match ((asp_types G) ![ top_id ]) with
       | None => False
       | Some (ev_arrow UNWRAP in_sig out_sig) =>
@@ -387,7 +387,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext)
     | mt_evt => err err_str_no_evidence_below
     | nonce_evt _ => err err_str_no_evidence_below
 
-    | asp_evt _ (asp_paramsC top_id _ _ _) et' => 
+    | asp_evt _ (asp_paramsC top_id args) et' => 
       match ((asp_types G) ![ top_id ]) with
       | None => err err_str_asp_no_type_sig
       | Some (ev_arrow UNWRAP in_sig out_sig) =>
@@ -439,7 +439,7 @@ Definition Evidence_Subterm `{DecEq ASP_ID} G e' : EvidenceT -> Prop :=
   (* sort of a hack here, the terminals are always subterms!? *)
   | mt_evt => False
   | nonce_evt _ => False
-  | asp_evt _ (asp_paramsC asp_id _ _ _) e'' =>
+  | asp_evt _ (asp_paramsC asp_id args) e'' =>
     match ((asp_types G) ![ asp_id ]) with
     | None => False
     | Some (ev_arrow UNWRAP in_sig out_sig) => 
@@ -517,7 +517,7 @@ Definition et_size `{DecEq ASP_ID} (G : GlobalContext)
   | mt_evt=> res 0
   | nonce_evt _ => res 1
   | asp_evt p par e' =>
-    let '(asp_paramsC asp_id args targ_plc targ) := par in
+    let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
     | Some (ev_arrow fwd in_sig out_sig) =>
