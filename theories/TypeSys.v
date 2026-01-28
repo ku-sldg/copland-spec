@@ -143,18 +143,6 @@ Module TestNormalizeEv.
     repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 
-  (* Example test_normalize_ev'3 : forall p1 p2 aid1 aid2 args1 args2 targp1 targp2 targ1 targ2,
-    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
-    (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
-    (asp_comps G) ![ aid2 ] = Some aid1 ->
-    exists He, normalize_ev' G (asp_evt p1 (asp_paramsC aid1 args1 targp1 targ1) (asp_evt p2 (asp_paramsC aid2 args2 targp2 targ2) mt_evt)) = exist _ mt_evt He.
-  Proof.
-    intros.
-    eexists.
-    unfold normalize_ev'.
-    admit.
-  Qed. *)
-
   Example test_normalize_ev4 : 
     forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4,
     (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->

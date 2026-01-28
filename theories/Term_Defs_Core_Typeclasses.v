@@ -2,7 +2,7 @@ From RocqCandy Require Import All.
 
 From CoplandSpec Require Import Term_Defs_Core String_Vars.
 
-Global Instance DecEq_ASP_PARAMS `{DecEq ASP_ID, DecEq Plc, DecEq TARG_ID, DecEq ASP_ARGS} : DecEq ASP_PARAMS.
+Global Instance DecEq_ASP_PARAMS `{DecEq ASP_ID, DecEq Plc, DecEq ASP_ARGS} : DecEq ASP_PARAMS.
 build_deq.
 Defined.
 

@@ -29,16 +29,13 @@ Definition N_ID: Set := nat.
 (** [Event_ID] represents Event identifiers *)
 Definition Event_ID: Set := nat.
 
-(** [ASP_ID], [TARG_ID], and [Arg] are all identifiers and parameters to ASP terms
+(** [ASP_ID] and [Arg] are all identifiers and parameters to ASP terms
     [ASP_ID] identifies the procedure invoked.
-    [TARG_ID] identifies the target (when a target makes sense).
     [Arg] represents a custom argument for a given ASP 
           (defined and interpreted per-scenario/implementaiton).
 *)
 Definition ASP_ID: Set := ID_Type.
 Definition ASP_ARGS := JSON. (* Map string string. *)
-
-Definition TARG_ID: Set := ID_Type.
 
 (** Grouping ASP parameters into one constructor *)
 Inductive ASP_PARAMS: Type :=

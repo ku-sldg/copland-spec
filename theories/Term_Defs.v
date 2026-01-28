@@ -104,17 +104,6 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           (* NOTE: In practice this should nearly never happen as the appraisal procedure itself should be doing the UNWRAP and subsequent functions *)
           r <- apply_to_evidence_below G (fun e => F e ev_out) [Trail_UNWRAP asp_id] e' ;;
           r
-          (* match e' with
-          | asp_evt _ (asp_paramsC asp_id' args' targ_plc' targ') e'' => 
-            match (lookup asp_id' (asp_types G)) with
-            | None => errC err_str_asp_no_type_sig
-            | Some (ev_arrow WRAP in_sig' out_sig') =>
-              (* We are a well-typed (UNWRAP (WRAP e'')), so continue *)
-              F e'' ev_out
-            | _ => errC err_str_appr_not_originally_a_wrap
-            end
-          | _ => errC err_str_appr_only_allow_on_asp
-          end *)
 
         | EXTEND => 
           (* appraisal of an extend involves doing the appraisal of the extension
