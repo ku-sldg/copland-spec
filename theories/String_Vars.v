@@ -37,6 +37,9 @@ Definition wrap_name_constant : string := "WRAP".
 Definition unwrap_name_constant : string := "UNWRAP".
 Definition extend_name_constant : string := "EXTEND".
 
+Definition attrs_name_constant  : string := "ATTRS".
+Definition attr_reconstr_constant : string := "RECONSTR".
+
 Definition mt_name_constant : string := "mt_evt".
 Definition nonce_evt_name_constant : string := "nonce_evt".
 Definition asp_evt_name_constant : string := "asp_evt".

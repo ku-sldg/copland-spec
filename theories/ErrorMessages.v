@@ -130,3 +130,7 @@ Definition err_str_appr_not_originally_a_wrap := "Error in appraisal procedure c
 Definition err_str_appr_only_allow_on_asp := "Error in appraisal procedure computation: Attempting to appraise UNWRAPPED evidence but evidence that was UNWRAPPED was not an ASP (UNWRAP can only be applied to an ASP input).".
 
 Definition err_str_split_evidence_not_split := "Error in appraisal procedure computation, type of evidence passed into a split appraisal procedure is not a split evidence type".
+
+Definition err_str_json_attr_unrecognized := "JSON: Attribute unrecognized in JSON object".
+Opaque err_str_json_attr_unrecognized.
+

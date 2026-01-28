@@ -55,8 +55,12 @@ Inductive EvOutSig :=
 | OutN : nat -> EvOutSig
 | OutUnwrap : EvOutSig.
 
+Inductive Attr :=
+(** [Reconstr] means the evidence yielded by this is "reconstructable" from a golden value *)
+| Reconstr.
+
 Inductive EvSig :=
-| ev_arrow : FWD -> EvInSig -> EvOutSig -> EvSig.
+| ev_arrow : FWD -> list Attr -> EvInSig -> EvOutSig -> EvSig.
 
 (** The structure of EvidenceT. 
 
@@ -148,14 +152,14 @@ Inductive Evidence_Subterm_path `{DecEq ASP_ID} (G : GlobalContext)
     (e' : EvidenceT) : list EvTrails -> EvidenceT -> Prop :=
 | esp_empty_trail : Evidence_Subterm_path G e' nil e'
 
-| esp_unwrap : forall p in_sig out_sig e'' trails aid args,
-  lookup aid (asp_types G) = Some (ev_arrow UNWRAP in_sig out_sig) ->
+| esp_unwrap : forall p in_sig out_sig e'' trails attrs aid args,
+  lookup aid (asp_types G) = Some (ev_arrow UNWRAP attrs in_sig out_sig) ->
   Evidence_Subterm_path G e' ((Trail_UNWRAP aid) :: trails) e'' ->
   trails <> nil ->
   Evidence_Subterm_path G e' trails (asp_evt p (asp_paramsC aid args) e'')
 
-| esp_wrap : forall p in_sig out_sig e'' trails aid args aid',
-  lookup aid (asp_types G) = Some (ev_arrow WRAP in_sig out_sig) ->
+| esp_wrap : forall p in_sig out_sig e'' trails attrs aid args aid',
+  lookup aid (asp_types G) = Some (ev_arrow WRAP attrs in_sig out_sig) ->
   lookup aid (asp_comps G) = Some aid' ->
   Evidence_Subterm_path G e' trails e'' ->
   Evidence_Subterm_path G e' ((Trail_UNWRAP aid') :: trails) (asp_evt p (asp_paramsC aid args) e'')
@@ -223,13 +227,13 @@ Qed.
 Theorem Evidence_subterm_path_Ind_special `{DecEq ASP_ID} G (P : EvidenceT -> Prop)
   (f_mt : P mt_evt)
   (f_nonce : forall n, P (nonce_evt n))
-  (f_subterm_asp_nowrap : forall p aid args e t isig osig,
+  (f_subterm_asp_nowrap : forall p aid args e t attrs isig osig,
     t <> UNWRAP ->
-    lookup aid (asp_types G) = Some (ev_arrow t isig osig) ->
+    lookup aid (asp_types G) = Some (ev_arrow t attrs isig osig) ->
     P e -> 
     P (asp_evt p (asp_paramsC aid args) e))
-  (f_subterm_asp : forall p aid args e isig osig, 
-    lookup aid (asp_types G) = Some (ev_arrow UNWRAP isig osig) ->
+  (f_subterm_asp : forall p aid args e attrs isig osig, 
+    lookup aid (asp_types G) = Some (ev_arrow UNWRAP attrs isig osig) ->
     (forall l e', Evidence_Subterm_path G e' (Trail_UNWRAP aid :: l) e -> P e') ->
     P (asp_evt p (asp_paramsC aid args) e))
   (f_subterm_asp_none : forall p aid args e,
@@ -304,11 +308,11 @@ Definition Evidence_Subterm_path_fix `{DecEq ASP_ID} (G : GlobalContext) (e' : E
     | asp_evt _ (asp_paramsC top_id args) et' => 
       match ((asp_types G) ![ top_id ]) with
       | None => False
-      | Some (ev_arrow UNWRAP in_sig out_sig) =>
+      | Some (ev_arrow UNWRAP attrs in_sig out_sig) =>
         (* we are UNWRAP, so add to trail and continue *)
         F ((Trail_UNWRAP top_id) :: trails) et'
 
-      | Some (ev_arrow WRAP in_sig out_sig) =>
+      | Some (ev_arrow WRAP attrs in_sig out_sig) =>
         (* we are a WRAP, better be the case we are looking for one *)
         match trail with
         | Trail_UNWRAP unwrap_id => 
@@ -324,7 +328,7 @@ Definition Evidence_Subterm_path_fix `{DecEq ASP_ID} (G : GlobalContext) (e' : E
         | _ => False
         end
 
-      | Some (ev_arrow _ in_sig out_sig) =>
+      | Some (ev_arrow _ attrs in_sig out_sig) =>
         (* we are neither WRAP or UNWRAP, so this is an error *)
         False
       end
@@ -387,11 +391,11 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext)
     | asp_evt _ (asp_paramsC top_id args) et' => 
       match ((asp_types G) ![ top_id ]) with
       | None => err err_str_asp_no_type_sig
-      | Some (ev_arrow UNWRAP in_sig out_sig) =>
+      | Some (ev_arrow UNWRAP attrs in_sig out_sig) =>
         (* we are UNWRAP, so add to trail and continue *)
         F ((Trail_UNWRAP top_id) :: trails) et'
 
-      | Some (ev_arrow WRAP in_sig out_sig) =>
+      | Some (ev_arrow WRAP attrs in_sig out_sig) =>
         (* we are a WRAP, better be the case we are looking for one *)
         match trail with
         | Trail_UNWRAP unwrap_id => 
@@ -407,7 +411,7 @@ Definition apply_to_evidence_below {A} `{DecEq ASP_ID} (G : GlobalContext)
         | _ => err err_str_trail_mismatch
         end
 
-      | Some (ev_arrow _ in_sig out_sig) =>
+      | Some (ev_arrow _ attrs in_sig out_sig) =>
         (* we are neither WRAP or UNWRAP, so this is an error *)
         err err_str_asp_at_bottom_not_wrap
       end
@@ -439,12 +443,12 @@ Definition Evidence_Subterm `{DecEq ASP_ID} G e' : EvidenceT -> Prop :=
   | asp_evt _ (asp_paramsC asp_id args) e'' =>
     match ((asp_types G) ![ asp_id ]) with
     | None => False
-    | Some (ev_arrow UNWRAP in_sig out_sig) => 
+    | Some (ev_arrow UNWRAP attrs in_sig out_sig) => 
       match apply_to_evidence_below G F [Trail_UNWRAP asp_id] e'' with
       | err _ => False
       | res e => e
       end
-    | Some (ev_arrow _ in_sig out_sig) => 
+    | Some (ev_arrow _ attrs in_sig out_sig) => 
       e' = e''
     end
   | left_evt e'' => 
@@ -517,7 +521,7 @@ Definition et_size `{DecEq ASP_ID} (G : GlobalContext)
     let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow fwd in_sig out_sig) =>
+    | Some (ev_arrow fwd attrs in_sig out_sig) =>
       match fwd with
       | REPLACE => 
         (* we are replacing, so just the output *)

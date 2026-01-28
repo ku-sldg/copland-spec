@@ -80,7 +80,7 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
     let '(asp_paramsC asp_id args) := ps in
     match (asp_types G) ![ asp_id ] with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow fwd in_sig out_sig) =>
+    | Some (ev_arrow fwd attrs in_sig out_sig) =>
       match (asp_comps G) ![ asp_id ] with
       | None => err err_str_asp_no_compat_appr_asp
       | Some appr_id =>
@@ -92,7 +92,7 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           (* apply the dual to get a new evidence to operate on, then recurse *)
           match (asp_types G) ![ appr_id ] with
           | None => err err_str_asp_no_type_sig
-          | Some (ev_arrow UNWRAP in_sig' out_sig') =>
+          | Some (ev_arrow UNWRAP attrs in_sig' out_sig') =>
             let ev_out' := asp_evt p dual_par ev_out in
             F e' ev_out'
           | _ => err err_str_appr_compute_evt_neq
@@ -140,10 +140,10 @@ Module Testing.
     ff.
   Qed.
 
-  Example appr_procedure_ex2 : forall G p,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP InAll (OutN 1)) ->
+  Example appr_procedure_ex2 : forall G p attrs,
+    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP attrs InAll (OutN 1)) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP InAll (OutUnwrap)) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs InAll (OutUnwrap)) ->
     appr_procedure G p (asp_evt p (enc_params p) (nonce_evt 1)) = 
     res (
       asp_evt p check_nonce_params (
@@ -166,10 +166,10 @@ Module Testing.
     reflexivity.
   Qed.
 
-  Example appr_procedure_ex4 : forall G p,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP InAll (OutN 1)) ->
+  Example appr_procedure_ex4 : forall G p attrs,
+    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP attrs InAll (OutN 1)) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP InAll (OutUnwrap)) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs InAll (OutUnwrap)) ->
     appr_procedure G p (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2))) = res (split_evt 
       (asp_evt p check_nonce_params 
         (left_evt 
@@ -221,7 +221,7 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
     lookup asp_id (asp_comps G) <> None /\
     (match ((asp_types G) ![ asp_id ]) with
     | None => False
-    | Some (ev_arrow fwd in_sig out_sig) =>
+    | Some (ev_arrow fwd attrs in_sig out_sig) =>
       match fwd with
       | REPLACE => True
       | WRAP => F e'
@@ -290,7 +290,7 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
     let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow asp_fwd in_sig out_sig) =>
+    | Some (ev_arrow asp_fwd attrs in_sig out_sig) =>
       match asp_fwd with
       | REPLACE => res 1 (* Single dual appr asp for 1 *)
       | WRAP => 
@@ -379,7 +379,7 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
       let dual_par := asp_paramsC appr_id args in
       match ((asp_types G) ![ asp_id ]) with
       | None => err err_str_asp_no_type_sig
-      | Some (ev_arrow fwd in_sig out_sig) =>
+      | Some (ev_arrow fwd attrs in_sig out_sig) =>
         match fwd with
         | REPLACE => (* single dual for replace *)
           res ([umeas i p dual_par ev_out])

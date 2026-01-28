@@ -288,10 +288,33 @@ unfold EvOutSig_from_JSON, EvOutSig_to_JSON;
 induction a; jsonifiable_hammer.
 Defined.
 
-Definition EvSig_to_JSON `{Jsonifiable EvOutSig, Stringifiable FWD} (t : EvSig) : JSON := 
-  let '(ev_arrow fwd in_sig out_sig) := t in
+Definition Attr_to_JSON (t : Attr) : JSON := 
+  match t with
+  | Reconstr => JSON_String attr_reconstr_constant
+  end.
+
+Definition Attr_from_JSON (js : JSON) : Result Attr string :=
+  match js with
+  | JSON_String s =>
+    if (String.eqb s attr_reconstr_constant)
+    then res Reconstr
+    else err err_str_json_attr_unrecognized 
+  | _ => err err_str_json_no_constructor_name_string
+  end.
+
+Global Instance Jsonifiable_Attr : Jsonifiable Attr.
+eapply (Build_Jsonifiable Attr) with
+  (to_JSON := Attr_to_JSON)
+  (from_JSON := Attr_from_JSON).
+unfold Attr_from_JSON, Attr_to_JSON;
+jsonifiable_hammer.
+Defined.
+
+Definition EvSig_to_JSON `{Jsonifiable Attr, Jsonifiable EvOutSig, Stringifiable FWD} (t : EvSig) : JSON := 
+  let '(ev_arrow fwd attrs in_sig out_sig) := t in
   JSON_Object [
     (fwd_name_constant, JSON_String (to_string fwd));
+    (attrs_name_constant, to_JSON attrs);
     (ev_in_sig_name_constant, 
       JSON_String (match in_sig with
       | InAll => all_name_constant
@@ -299,12 +322,14 @@ Definition EvSig_to_JSON `{Jsonifiable EvOutSig, Stringifiable FWD} (t : EvSig) 
       end));
     (ev_out_sig_name_constant, to_JSON out_sig)].
 
-Definition EvSig_from_JSON `{Jsonifiable EvOutSig, Stringifiable FWD} (js : JSON) : Result EvSig string :=
+Definition EvSig_from_JSON `{Jsonifiable Attr, Jsonifiable EvOutSig, Stringifiable FWD} (js : JSON) : Result EvSig string :=
   fwd_js <- JSON_get_string fwd_name_constant js ;;
+  attrs_js <- JSON_get_Object attrs_name_constant js ;;
   in_sig_js <- JSON_get_string ev_in_sig_name_constant js ;;
   out_sig_js <- JSON_get_Object ev_out_sig_name_constant js ;;
 
   fwd <- from_string fwd_js ;;
+  attrs <- from_JSON attrs_js ;;
   in_sig <- 
     (if (String.eqb in_sig_js all_name_constant) 
     then res InAll
@@ -313,15 +338,14 @@ Definition EvSig_from_JSON `{Jsonifiable EvOutSig, Stringifiable FWD} (js : JSON
     else err err_str_invalid_evinsig_json) ;;
   out_sig <- from_JSON out_sig_js ;;
 
-  res (ev_arrow fwd in_sig out_sig).
+  res (ev_arrow fwd attrs in_sig out_sig).
 
 Global Instance Jsonifiable_EvSig `{Jsonifiable EvOutSig, Stringifiable FWD} : Jsonifiable EvSig.
 eapply Build_Jsonifiable with
 (to_JSON := EvSig_to_JSON)
 (from_JSON := EvSig_from_JSON);
 unfold EvSig_from_JSON, EvSig_to_JSON;
-destruct a; ff u;
-jsonifiable_hammer.
+destruct a; ff u; jsonifiable_hammer.
 Defined.
 
 Fixpoint EvidenceT_to_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable ASP_PARAMS} (e : EvidenceT) : JSON := 

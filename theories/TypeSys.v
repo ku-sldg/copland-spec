@@ -22,10 +22,10 @@ Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (asp_evt p par e1) (asp_evt p par e2)
 | ev_red_asp_unwrap_wrap : 
-    forall p p' aid aid' args args' e' e'' n,
+    forall p p' aid aid' args args' e' e'' n attrs1 attrs2,
     Evidence_Reduce G e' (asp_evt p' (asp_paramsC aid' args') e'') ->
-    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
-    (asp_types G) ![ aid' ] = Some (ev_arrow WRAP InAll (OutN n)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
+    (asp_types G) ![ aid' ] = Some (ev_arrow WRAP attrs2 InAll (OutN n)) ->
     (asp_comps G) ![ aid' ] = Some aid ->
     Evidence_Reduce G (asp_evt p (asp_paramsC aid args) e') e''.
 
@@ -85,7 +85,7 @@ Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
   normalize_ev G (split_evt l r) := split_evt l r;
   normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
     match ((asp_types G) ![ asp_id ]) with
-    | Some (ev_arrow UNWRAP InAll OutUnwrap) =>
+    | Some (ev_arrow UNWRAP attrs InAll OutUnwrap) =>
         match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
         | err _ => (* couldn't reduce *)
           asp_evt p (asp_paramsC asp_id args) e'
@@ -133,9 +133,9 @@ Module TestNormalizeEv.
     eexists.
   Qed.
 
-  Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2,
-    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
-    (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP InAll (OutN 42)) ->
+  Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 attrs1 attrs2,
+    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
+    (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP attrs2 InAll (OutN 42)) ->
     (asp_comps G) ![ aid2 ] = Some aid1 ->
     normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1) (asp_evt p2 (asp_paramsC aid2 args2) mt_evt)) = (mt_evt).
   Proof.
@@ -144,11 +144,11 @@ Module TestNormalizeEv.
   Qed.
 
   Example test_normalize_ev4 : 
-    forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4,
-    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
-    (asp_types G) ![ aid2 ] = Some (ev_arrow UNWRAP InAll OutUnwrap) ->
-    (asp_types G) ![ aid3 ] = Some (ev_arrow WRAP InAll (OutN 1)) ->
-    (asp_types G) ![ aid4 ] = Some (ev_arrow WRAP InAll (OutN 1)) ->
+    forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4 attrs1 attrs2 attrs3 attrs4,
+    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
+    (asp_types G) ![ aid2 ] = Some (ev_arrow UNWRAP attrs2 InAll OutUnwrap) ->
+    (asp_types G) ![ aid3 ] = Some (ev_arrow WRAP attrs3 InAll (OutN 1)) ->
+    (asp_types G) ![ aid4 ] = Some (ev_arrow WRAP attrs4 InAll (OutN 1)) ->
     (asp_comps G) ![ aid3 ] = Some aid2 ->
     (asp_comps G) ![ aid4 ] = Some aid1 ->
     normalize_ev G 
