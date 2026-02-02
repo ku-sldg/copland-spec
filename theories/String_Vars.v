@@ -73,10 +73,6 @@ Definition none_name_constant : string := "NONE".
 Definition split1_name_constant : string := "split1".
 Definition split2_name_constant : string := "split2".
 
-Definition ev_out_sig_name_constant : string := "EvOutSig".
-Definition outn_name_constant : string := "OutN".
-Definition outunwrap_name_constant : string := "OutUnwrap".
-
 Definition asp_types_name_constant : string := "ASP_Types".
 Definition asp_comps_name_constant : string := "ASP_Comps".
 

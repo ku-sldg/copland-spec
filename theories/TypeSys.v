@@ -24,8 +24,8 @@ Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :
 | ev_eq_asp_unwrap_wrap : 
     forall p p' aid aid' args args' e' e'' n attrs1 attrs2,
     Evidence_Reduce G e' (asp_evt p' (asp_paramsC aid' args') e'') ->
-    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
-    (asp_types G) ![ aid' ] = Some (ev_arrow WRAP attrs2 InAll (OutN n)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs1 InAll) ->
+    (asp_types G) ![ aid' ] = Some (ev_arrow (WRAP n) attrs2 InAll) ->
     (asp_comps G) ![ aid' ] = Some aid ->
     Evidence_Reduce G (asp_evt p (asp_paramsC aid args) e') e''.
 
@@ -73,17 +73,19 @@ Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
     | err _ => (* couldn't reduce *) right_evt e'
     | res e'res => e'res
     end;
-  normalize_ev G (split_evt l r) := split_evt l r;
+  normalize_ev G (split_evt l r) := 
+    split_evt (normalize_ev G l) (normalize_ev G r);
   normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
     match ((asp_types G) ![ asp_id ]) with
-    | Some (ev_arrow UNWRAP attrs in_sig OutUnwrap) =>
+    | None => asp_evt p (asp_paramsC asp_id args) e'
+    | Some (ev_arrow UNWRAP attrs in_sig) =>
         match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
         | err _ => (* couldn't reduce *)
           asp_evt p (asp_paramsC asp_id args) e'
         | res e'res => e'res
         end
     | _ => (* can't reduce at top-level, just push down *)
-      asp_evt p (asp_paramsC asp_id args) e'
+      asp_evt p (asp_paramsC asp_id args) (normalize_ev G e')
     end.
 
 Theorem normalize_ev_measure_decrease : forall G e e',
@@ -92,19 +94,16 @@ Theorem normalize_ev_measure_decrease : forall G e e',
 Proof.
   intros G.
   induction e using (Evidence_subterm_path_Ind_special G);
-  ff; ltac1:(simp normalize_ev in * ); ff l.
-  - 
-    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
-    pp (H0 _ _ H1 _ eq_refl).
+  ff; ltac1:(simp normalize_ev in * ); ff l;
+  try (pp (IHe _ eq_refl); ff l; fail);
+  unpack_atebs; ff l.
+  - pp (H0 _ _ Hesp _ eq_refl).
     find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
-  - 
-    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
-    pp (H _ _ H0 _ eq_refl).
+  - pp (H _ _ Hesp _ eq_refl).
     find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
-  - 
-    find_eapply_lem_hyp @apply_to_evidence_below_res_spec; ff.
-    pp (H _ _ H0 _ eq_refl).
+  - pp (H _ _ Hesp _ eq_refl).
     find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
+  - pp (IHe1 _ eq_refl); pp (IHe2 _ eq_refl); ff l.
 Qed.
 
 Module TestNormalizeEv.
@@ -125,8 +124,8 @@ Module TestNormalizeEv.
   Qed.
 
   Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 attrs1 attrs2,
-    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
-    (asp_types G) ![ aid2 ] = Some (ev_arrow WRAP attrs2 InAll (OutN 42)) ->
+    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll) ->
+    (asp_types G) ![ aid2 ] = Some (ev_arrow (WRAP 42) attrs2 InAll) ->
     (asp_comps G) ![ aid2 ] = Some aid1 ->
     normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1) (asp_evt p2 (asp_paramsC aid2 args2) mt_evt)) = (mt_evt).
   Proof.
@@ -136,10 +135,10 @@ Module TestNormalizeEv.
 
   Example test_normalize_ev4 : 
     forall p1 p2 p3 p4 aid1 aid2 aid3 aid4 args1 args2 args3 args4 attrs1 attrs2 attrs3 attrs4,
-    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
-    (asp_types G) ![ aid2 ] = Some (ev_arrow UNWRAP attrs2 InAll OutUnwrap) ->
-    (asp_types G) ![ aid3 ] = Some (ev_arrow WRAP attrs3 InAll (OutN 1)) ->
-    (asp_types G) ![ aid4 ] = Some (ev_arrow WRAP attrs4 InAll (OutN 1)) ->
+    (asp_types G) ![ aid1 ] = Some (ev_arrow UNWRAP attrs1 InAll) ->
+    (asp_types G) ![ aid2 ] = Some (ev_arrow UNWRAP attrs2 InAll) ->
+    (asp_types G) ![ aid3 ] = Some (ev_arrow (WRAP 1) attrs3 InAll) ->
+    (asp_types G) ![ aid4 ] = Some (ev_arrow (WRAP 1) attrs4 InAll) ->
     (asp_comps G) ![ aid3 ] = Some aid2 ->
     (asp_comps G) ![ aid4 ] = Some aid1 ->
     normalize_ev G 
@@ -231,7 +230,9 @@ Proof.
   induction e using (Evidence_subterm_path_Ind_special G); 
   intros; try (ff; fail);
   ltac1:(simp normalize_ev in *);
-  ff u, l; ateb_simp; ff.
+  ff u, l; ateb_simp; ff;
+  try (pp (IHe _ eq_refl); ff l; fail);
+  try (pp (IHe1 _ eq_refl); pp (IHe2 _ eq_refl); ff l; fail).
 Qed.
 
 Corollary normalize_ev_preserves_size : forall G e,
@@ -279,19 +280,19 @@ Inductive evt_stack_denotation (G : GlobalContext) : EvidenceT -> nat -> Prop :=
     evt_stack_denotation G r n ->
     evt_stack_denotation G (right_evt e') n
 | interp_asp_replace : forall p aid attrs isig args e' n,
-    (asp_types G) ![ aid ] = Some (ev_arrow REPLACE attrs isig (OutN n)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow (REPLACE n) attrs isig) ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n
 | interp_asp_extend : forall p aid attrs isig args e' n n_ext,
-    (asp_types G) ![ aid ] = Some (ev_arrow EXTEND attrs isig (OutN n_ext)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow (EXTEND n_ext) attrs isig) ->
     evt_stack_denotation G e' n ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') (n_ext + n)
 | interp_asp_wrap : forall p aid attrs isig args e' n,
-    (asp_types G) ![ aid ] = Some (ev_arrow WRAP attrs isig (OutN n)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow (WRAP n) attrs isig) ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n
 | interp_asp_unwrap : forall p aid aid' attrs isig args args' e' e'' n n_orig,
     canon_ev_rep G e' = asp_evt p (asp_paramsC aid' args') e'' ->
-    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs isig OutUnwrap) ->
-    (asp_types G) ![ aid' ] = Some (ev_arrow WRAP attrs isig (OutN n)) ->
+    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs isig) ->
+    (asp_types G) ![ aid' ] = Some (ev_arrow (WRAP n) attrs isig) ->
     (asp_comps G) ![ aid' ] = Some aid ->
     evt_stack_denotation G e'' n_orig ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n_orig.
