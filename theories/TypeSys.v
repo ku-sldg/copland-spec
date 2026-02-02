@@ -4,24 +4,24 @@ From Equations Require Import Equations.
 
 (** EvidenceT equivalence relation *)
 Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
-| ev_red_left : forall e1 e2,
+| ev_eq_left : forall e1 e2,
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (left_evt e1) (left_evt e2)
-| ev_red_right : forall e1 e2,
+| ev_eq_right : forall e1 e2,
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (right_evt e1) (right_evt e2)
-| ev_red_split : forall e1 e2 e1' e2',
+| ev_eq_split : forall e1 e2 e1' e2',
     Evidence_Reduce G e1 e1' ->
     Evidence_Reduce G e2 e2' ->
     Evidence_Reduce G (split_evt e1 e2) (split_evt e1' e2')
-| ev_red_left_split : forall l r,
+| ev_eq_left_split : forall l r,
     Evidence_Reduce G (left_evt (split_evt l r)) l
-| ev_red_right_split : forall l r,
+| ev_eq_right_split : forall l r,
     Evidence_Reduce G (right_evt (split_evt l r)) r
-| ev_red_asp : forall p par e1 e2,
+| ev_eq_asp : forall p par e1 e2,
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (asp_evt p par e1) (asp_evt p par e2)
-| ev_red_asp_unwrap_wrap : 
+| ev_eq_asp_unwrap_wrap : 
     forall p p' aid aid' args args' e' e'' n attrs1 attrs2,
     Evidence_Reduce G e' (asp_evt p' (asp_paramsC aid' args') e'') ->
     (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs1 InAll OutUnwrap) ->
@@ -59,15 +59,6 @@ Proof.
   lia.
 Qed.
 
-Definition result_transfer_depth (e1 e2 : EvidenceT)
-    (IHe1e2 : EvidenceT_depth e1 < EvidenceT_depth e2)
-    (Re1 :Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e1} string)
-  : Result {e' : EvidenceT | EvidenceT_depth e' <= EvidenceT_depth e2} string :=
-  match Re1 with
-  | err s => err s
-  | res (exist _ s Hs) => res (exist _ s (lt_le_transfer IHe1e2 Hs))
-  end.
-
 Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
     : EvidenceT :=
   normalize_ev G mt_evt := mt_evt;
@@ -85,7 +76,7 @@ Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT)
   normalize_ev G (split_evt l r) := split_evt l r;
   normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
     match ((asp_types G) ![ asp_id ]) with
-    | Some (ev_arrow UNWRAP attrs InAll OutUnwrap) =>
+    | Some (ev_arrow UNWRAP attrs in_sig OutUnwrap) =>
         match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
         | err _ => (* couldn't reduce *)
           asp_evt p (asp_paramsC asp_id args) e'
@@ -190,6 +181,17 @@ Proof.
   eapply normalize_ev_measure_decrease.
 Qed.
 
+(* Lemma normalize_ev_no_esp_path : forall G e t1 trails e',
+  ~ (Evidence_Subterm_path G e' (t1 :: trails) (normalize_ev G e)).
+Proof.
+  intros.
+  intros HC.
+  find_eapply_lem_hyp Evidence_Subterm_path_depth_cons.
+  pp (canon_ev_canonical G e e').
+  unfold canon_ev_rep in *.
+  lia.
+Qed. *)
+
 (* Key Theorem: Equivalence implies Equal Canonical Representatives *)
 Lemma equiv_impl_canon_ev_rep : forall G e1 e2,
   Evidence_Equiv G e1 e2 ->
@@ -198,6 +200,15 @@ Proof.
   intros.
   unfold Evidence_Equiv, canon_ev_rep in *.
   ff.
+Qed.
+
+Lemma canon_ev_min_depth : forall G e e',
+  Evidence_Equiv G e e' ->
+  EvidenceT_depth (canon_ev_rep G e) <= EvidenceT_depth e' .
+Proof.
+  intros.
+  eapply (canon_ev_canonical G e' (canon_ev_rep G e)).
+  eapply equiv_impl_canon_ev_rep; ff.
 Qed.
 
 (* Key Theorem: Unique Canonical Evidence Representative *)
@@ -220,7 +231,7 @@ Proof.
   induction e using (Evidence_subterm_path_Ind_special G); 
   intros; try (ff; fail);
   ltac1:(simp normalize_ev in *);
-  ff u, l; try (ateb_simp); ff.
+  ff u, l; ateb_simp; ff.
 Qed.
 
 Corollary normalize_ev_preserves_size : forall G e,
@@ -246,3 +257,41 @@ Proof.
   find_eapply_lem_hyp normalize_preserves_size.
   ff.
 Qed.
+
+(** The Evidence Type Denotational Semantics:
+
+This differs from the paper's presentation, but essentially it just shows how
+big the evidence stack is/should be for a given evidence type
+*)
+Inductive evt_stack_denotation (G : GlobalContext) : EvidenceT -> nat -> Prop :=
+| interp_mt : evt_stack_denotation G mt_evt 0
+| interp_nonce : forall n, evt_stack_denotation G (nonce_evt n) 1
+| interp_split : forall l r s1 s2,
+    evt_stack_denotation G l s1 ->
+    evt_stack_denotation G r s2 ->
+    evt_stack_denotation G (split_evt l r) (s1 + s2)
+| interp_left : forall e' l r n,
+    canon_ev_rep G e' = split_evt l r ->
+    evt_stack_denotation G l n ->
+    evt_stack_denotation G (left_evt e') n
+| interp_right : forall e' l r n,
+    canon_ev_rep G e' = split_evt l r ->
+    evt_stack_denotation G r n ->
+    evt_stack_denotation G (right_evt e') n
+| interp_asp_replace : forall p aid attrs isig args e' n,
+    (asp_types G) ![ aid ] = Some (ev_arrow REPLACE attrs isig (OutN n)) ->
+    evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n
+| interp_asp_extend : forall p aid attrs isig args e' n n_ext,
+    (asp_types G) ![ aid ] = Some (ev_arrow EXTEND attrs isig (OutN n_ext)) ->
+    evt_stack_denotation G e' n ->
+    evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') (n_ext + n)
+| interp_asp_wrap : forall p aid attrs isig args e' n,
+    (asp_types G) ![ aid ] = Some (ev_arrow WRAP attrs isig (OutN n)) ->
+    evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n
+| interp_asp_unwrap : forall p aid aid' attrs isig args args' e' e'' n n_orig,
+    canon_ev_rep G e' = asp_evt p (asp_paramsC aid' args') e'' ->
+    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs isig OutUnwrap) ->
+    (asp_types G) ![ aid' ] = Some (ev_arrow WRAP attrs isig (OutN n)) ->
+    (asp_comps G) ![ aid' ] = Some aid ->
+    evt_stack_denotation G e'' n_orig ->
+    evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n_orig.
