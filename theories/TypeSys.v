@@ -14,10 +14,12 @@ Inductive Evidence_Reduce (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :
     Evidence_Reduce G e1 e1' ->
     Evidence_Reduce G e2 e2' ->
     Evidence_Reduce G (split_evt e1 e2) (split_evt e1' e2')
-| ev_eq_left_split : forall l r,
-    Evidence_Reduce G (left_evt (split_evt l r)) l
-| ev_eq_right_split : forall l r,
-    Evidence_Reduce G (right_evt (split_evt l r)) r
+| ev_eq_left_split : forall l r e,
+    Evidence_Reduce G e (split_evt l r) ->
+    Evidence_Reduce G (left_evt e) l
+| ev_eq_right_split : forall l r e,
+    Evidence_Reduce G e (split_evt l r) ->
+    Evidence_Reduce G (right_evt e) r
 | ev_eq_asp : forall p par e1 e2,
     Evidence_Reduce G e1 e2 ->
     Evidence_Reduce G (asp_evt p par e1) (asp_evt p par e2)
@@ -37,73 +39,54 @@ Proof.
   induction H; simpl; ff l.
 Qed.
 
-Lemma lt_le_transfer {a b c} :
-  b < c ->
-  a <= b ->
-  a <= c.
-Proof.
-  lia.
-Qed.
-
-Lemma sle_impl_les {a b} :
-  S a <= b ->
-  a <= S b.
-Proof.
-  lia.
-Qed.
-
-Lemma smax_le_seither {a b c} :
-  S (max a b) <= c ->
-  a <= S c /\ b <= S c.
-Proof.
-  lia.
-Qed.
-
-Equations normalize_ev `{DecEq ASP_ID} (G : GlobalContext) (e : EvidenceT) 
-    : EvidenceT :=
+Equations? normalize_ev (G : GlobalContext) (e : EvidenceT) 
+    : EvidenceT by wf (EvidenceT_depth e) :=
   normalize_ev G mt_evt := mt_evt;
   normalize_ev G (nonce_evt n) := nonce_evt n;
   normalize_ev G (left_evt e') :=
-    match (apply_to_evidence_below G (normalize_ev G)) [Trail_LEFT] e' with
-    | err _ => (* couldn't reduce *) left_evt e'
-    | res e'res => e'res
+    match normalize_ev G e' with
+    | split_evt l r => l
+    | e'res => left_evt e'res
     end;
   normalize_ev G (right_evt e') :=
-    match (apply_to_evidence_below G (normalize_ev G)) [Trail_RIGHT] e' with
-    | err _ => (* couldn't reduce *) right_evt e'
-    | res e'res => e'res
+    match normalize_ev G e' with
+    | split_evt l r => r
+    | e'res => right_evt e'res
     end;
-  normalize_ev G (split_evt l r) := 
+  normalize_ev G (split_evt l r) :=
     split_evt (normalize_ev G l) (normalize_ev G r);
   normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
-    match ((asp_types G) ![ asp_id ]) with
-    | None => asp_evt p (asp_paramsC asp_id args) e'
-    | Some (ev_arrow UNWRAP attrs in_sig) =>
-        match (apply_to_evidence_below G (normalize_ev G)) [Trail_UNWRAP asp_id] e' with
-        | err _ => (* couldn't reduce *)
-          asp_evt p (asp_paramsC asp_id args) e'
-        | res e'res => e'res
+    match normalize_ev G e' with
+    | asp_evt p' (asp_paramsC asp_id' args') e'' =>
+        match ((asp_types G) ![ asp_id ]) with
+        | Some (ev_arrow UNWRAP attrs1 in_sig) =>
+            match ((asp_types G) ![ asp_id' ]) with
+            | Some (ev_arrow (WRAP n) attrs2 in_sig) =>
+                match ((asp_comps G) ![ asp_id' ]) with
+                | Some test_unwrapping_id =>
+                    if (DecEq.dec_eq test_unwrapping_id asp_id) 
+                    then e''
+                    else asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
+                | None => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
+                end
+            | _ => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
+            end
+        | _ => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
         end
-    | _ => (* can't reduce at top-level, just push down *)
-      asp_evt p (asp_paramsC asp_id args) (normalize_ev G e')
+    | e'res => asp_evt p (asp_paramsC asp_id args) e'res
     end.
+ff l.
+ff l.
+Defined.
 
 Theorem normalize_ev_measure_decrease : forall G e e',
   normalize_ev G e = e' ->
   EvidenceT_depth e' <= EvidenceT_depth e.
 Proof.
-  intros G.
-  induction e using (Evidence_subterm_path_Ind_special G);
-  ff; ltac1:(simp normalize_ev in * ); ff l;
-  try (pp (IHe _ eq_refl); ff l; fail);
-  unpack_atebs; ff l.
-  - pp (H0 _ _ Hesp _ eq_refl).
-    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
-  - pp (H _ _ Hesp _ eq_refl).
-    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
-  - pp (H _ _ Hesp _ eq_refl).
-    find_eapply_lem_hyp Evidence_Subterm_path_depth; ff l.
-  - pp (IHe1 _ eq_refl); pp (IHe2 _ eq_refl); ff l.
+  intros.
+  ltac1:( funelim (normalize_ev G e); simp normalize_ev in * ); ff l;
+  try (pp (H _ eq_refl); ff l; fail).
+  pp (H _ eq_refl); pp (H0 _ eq_refl); ff l.
 Qed.
 
 Module TestNormalizeEv.
@@ -113,14 +96,13 @@ Module TestNormalizeEv.
   Example test_normalize_ev1 : 
     normalize_ev G (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) = (nonce_evt 1).
   Proof.
-    repeat (ltac1:(simp normalize_ev in *); ff).
+    ff.
   Qed.
 
   Example test_normalize_ev2 : 
     normalize_ev G (left_evt (left_evt (split_evt (split_evt (nonce_evt 0) (nonce_evt 1)) (nonce_evt 2)))) = (nonce_evt 0).
   Proof.
-    intros.
-    eexists.
+    ff.
   Qed.
 
   Example test_normalize_ev3 : forall p1 p2 aid1 aid2 args1 args2 attrs1 attrs2,
@@ -129,7 +111,7 @@ Module TestNormalizeEv.
     (asp_comps G) ![ aid2 ] = Some aid1 ->
     normalize_ev G (asp_evt p1 (asp_paramsC aid1 args1) (asp_evt p2 (asp_paramsC aid2 args2) mt_evt)) = (mt_evt).
   Proof.
-    intros.
+    ff.
     repeat (ltac1:(simp normalize_ev in *); ff).
   Qed.
 
@@ -149,6 +131,13 @@ Module TestNormalizeEv.
   Proof.
     intros.
     repeat (ltac1:(simp normalize_ev in *); ff).
+  Qed.
+
+  Example test_normalize_ev5 : forall G,
+    normalize_ev G (split_evt (left_evt (split_evt (nonce_evt 1) mt_evt)) (nonce_evt 2)) =
+      split_evt (nonce_evt 1) (nonce_evt 2).
+  Proof.
+    ff.
   Qed.
 End TestNormalizeEv.
 
@@ -177,7 +166,8 @@ Lemma canon_ev_canonical : forall G e e',
   EvidenceT_depth e' <= EvidenceT_depth e.
 Proof.
   unfold canon_ev_rep.
-  eapply normalize_ev_measure_decrease.
+  ff.
+  eapply normalize_ev_measure_decrease; ff.
 Qed.
 
 (* Lemma normalize_ev_no_esp_path : forall G e t1 trails e',
@@ -222,14 +212,22 @@ Qed.
 (* Well-formedness *)
 (* We define well-defined under context Γ  *)
 
-Lemma normalize_preserves_size : forall G e e',
+(* Lemma normalize_preserves_size : forall G e e',
   normalize_ev G e = e' ->
   et_size G e = et_size G e'.
 Proof.
+  intros.
+  ltac1:( funelim (normalize_ev G e); simp normalize_ev in * ); ff u, l;
+  try (pp (H _ eq_refl); ff u, l; fail).
+  - unpack_atebs.
+  pp (H _ eq_refl); pp (H0 _ eq_refl); ff l.
+
   intros G.
+  induction e.
+
   induction e using (Evidence_subterm_path_Ind_special G); 
   intros; try (ff; fail);
-  ltac1:(simp normalize_ev in *);
+  ltac1:(simp normalize_ev in * );
   ff u, l; ateb_simp; ff;
   try (pp (IHe _ eq_refl); ff l; fail);
   try (pp (IHe1 _ eq_refl); pp (IHe2 _ eq_refl); ff l; fail).
@@ -258,6 +256,7 @@ Proof.
   find_eapply_lem_hyp normalize_preserves_size.
   ff.
 Qed.
+*)
 
 (** The Evidence Type Denotational Semantics:
 
@@ -289,10 +288,241 @@ Inductive evt_stack_denotation (G : GlobalContext) : EvidenceT -> nat -> Prop :=
 | interp_asp_wrap : forall p aid attrs isig args e' n,
     (asp_types G) ![ aid ] = Some (ev_arrow (WRAP n) attrs isig) ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n
-| interp_asp_unwrap : forall p aid aid' attrs isig args args' e' e'' n n_orig,
-    canon_ev_rep G e' = asp_evt p (asp_paramsC aid' args') e'' ->
-    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs isig) ->
+| interp_asp_unwrap : forall p p' aid aid' attrs attrs' isig isig' args args' e' e'' n n_orig,
+    canon_ev_rep G e' = asp_evt p' (asp_paramsC aid' args') e'' ->
+    (asp_types G) ![ aid ] = Some (ev_arrow UNWRAP attrs' isig') ->
     (asp_types G) ![ aid' ] = Some (ev_arrow (WRAP n) attrs isig) ->
     (asp_comps G) ![ aid' ] = Some aid ->
     evt_stack_denotation G e'' n_orig ->
     evt_stack_denotation G (asp_evt p (asp_paramsC aid args) e') n_orig.
+
+Ltac2 Notation "evter" := (ff (fun () => eauto using evt_stack_denotation)).
+
+Definition wf_EvidenceT (G : GlobalContext) (e : EvidenceT) : Prop :=
+  exists n, evt_stack_denotation G e n.
+
+Lemma equiv_preserves_denotation_size_fwd : forall G e n,
+  evt_stack_denotation G e n ->
+  evt_stack_denotation G (normalize_ev G e) n.
+Proof.
+  intros.
+  ltac1:( funelim (normalize_ev G e)).
+  - eauto.
+  - eauto.
+  - invc H0.
+    + rewrite H6 in *.
+      ff; rewrite <- Heqcall; evter.
+    + rewrite H6 in *.
+      ff; rewrite <- Heqcall; evter.
+    + rewrite H6 in *.
+      ff; rewrite <- Heqcall; evter.
+    + unfold canon_ev_rep in *.
+      rewrite H5 in *.
+      ff.
+  - invc H0.
+    unfold canon_ev_rep in *.
+    rewrite H2 in *.
+    eauto.
+  - invc H0.
+    unfold canon_ev_rep in *.
+    rewrite H2 in *.
+    eauto.
+  - invc H1.
+    ff a.
+    erewrite <- Heqcall.
+    evter.
+Qed.
+
+Lemma normalize_ev_done : forall G e e',
+  normalize_ev G e = e' ->
+  normalize_ev G e' = e'.
+Proof.
+  intros.
+  subst.
+  induction e;
+  try (destruct a); 
+  repeat (ltac1:( simp normalize_ev in * ); ff).
+Qed.
+
+Lemma equiv_preserves_denotation_size_rev : forall G e n,
+  evt_stack_denotation G (normalize_ev G e) n ->
+  evt_stack_denotation G e n.
+Proof.
+  intros.
+  ltac1:( funelim (normalize_ev G e)).
+  - eauto.
+  - eauto.
+  - ff;
+    try (rewrite <- Heqcall in *;
+      invc H0; evter;
+      unfold canon_ev_rep in *;
+      ltac1:( simp normalize_ev in * ); evter; fail).
+    + ltac1:( simp normalize_ev in Heqe ).
+      break_match; try congruence.
+      break_match.
+      injection Heqe; intros.
+      ltac1:( simp normalize_ev in H0 ).
+      erewrite Heqe0 in *.
+      subst.
+      rewrite Heqo in *.
+      rewrite Heqo0 in *.
+      rewrite Heqo1 in *.
+      clear H1.
+      break_match; try congruence.
+      clean.
+      evter.
+    + erewrite <- Heqcall in *.
+      invc H0; evter;
+      unfold canon_ev_rep in *;
+      ltac1:( simp normalize_ev in * ); evter.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); evter.
+    + erewrite <- Heqcall in *.
+      invc H0; evter;
+      unfold canon_ev_rep in *;
+      ltac1:( simp normalize_ev in * ); evter.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); evter.
+    + erewrite <- Heqcall in *.
+      invc H0; evter;
+      unfold canon_ev_rep in *;
+      ltac1:( simp normalize_ev in * ); evter.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); evter.
+  - ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); congruence.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); congruence.
+    + rewrite <- Heqcall in *.
+      (* clear Heqcall. *)
+      invc H0.
+      unfold canon_ev_rep in *.
+      destruct a.
+      ltac1:( simp normalize_ev in * ).
+      ff.
+      eapply interp_left; ff.
+      unfold canon_ev_rep in *.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); ff.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); ff.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + invc H0.
+      * ltac1:( simp normalize_ev in * ).
+        rewrite <- H2 in *.
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        rewrite <- H2 in *.
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+  - ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); congruence.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); congruence.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      unfold canon_ev_rep in *.
+      ltac1:( simp normalize_ev in * ); ff.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); ff.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + rewrite <- Heqcall in *.
+      invc H0.
+      ltac1:( simp normalize_ev in * ); ff.
+      eapply normalize_ev_done in Heqe.
+      ltac1:( simp normalize_ev in * ); ff.
+    + invc H0.
+      * ltac1:( simp normalize_ev in * ).
+        rewrite <- H2 in *.
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        rewrite <- H2 in *.
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+      * ltac1:( simp normalize_ev in * ).
+        evter.
+  - ff.
+    rewrite <- Heqcall in *.
+    invc H1.
+    evter.
+  Unshelve. eapply mt_evt.
+Qed.
+
+Theorem equiv_preserves_denotation_size : forall G e n,
+  evt_stack_denotation G e n <-> evt_stack_denotation G (normalize_ev G e) n.
+Proof.
+  split.
+  - eapply equiv_preserves_denotation_size_fwd.
+  - eapply equiv_preserves_denotation_size_rev.
+Qed.
+
+Theorem equiv_preserves_wf_EvidenceT : forall G e,
+  wf_EvidenceT G e ->
+  forall e',
+    Evidence_Equiv G e e' ->
+    wf_EvidenceT G e'.
+Proof.
+  intros.
+  unfold wf_EvidenceT in *.
+  ff.
+  eapply equiv_preserves_denotation_size in H.
+  erewrite H0 in H.
+  exists x.
+  erewrite equiv_preserves_denotation_size.
+  ff.
+Qed.
+(* 
+Theorem well_formed_evidence_et_size : forall G e n,
+  evt_stack_denotation G e n ->
+  et_size G e = res n.
+Proof.
+  intros G.
+  induction e using (Evidence_subterm_path_Ind_special G); ff u, l;
+  try (invc H; ff a; fail);
+  try (invc H1; ff a; fail);
+  unpack_atebs; ff a.
+  - invc H1; ff a.
+    pp (normalize_preserves_size _ _ _ H6).
+    eapply H0; ff.
+  - invc H1; ff a. *)
