@@ -10,15 +10,7 @@ Global Instance DecEq_ASP `{DecEq ASP_PARAMS, DecEq Plc}: DecEq ASP.
 build_deq.
 Defined.
 
-Global Instance DecEq_SP : DecEq SP.
-build_deq.
-Defined.
-
-Global Instance DecEq_Split `{DecEq SP} : DecEq Split.
-build_deq.
-Defined.
-
-Global Instance DecEq_Term `{DecEq Plc, DecEq Split, DecEq ASP} : DecEq Term.
+Global Instance DecEq_Term `{DecEq Plc, DecEq ASP} : DecEq Term.
 ref (Build_DecEq _ _).
 intros x; induction x;
 intros y; destruct y; ff;
@@ -417,24 +409,6 @@ eapply Build_Jsonifiable with (to_JSON := EvidenceT_to_JSON) (from_JSON := Evide
 induction a; ff u; jsonifiable_hammer.
 Defined.
 
-Global Instance Stringifiable_SP : Stringifiable SP := {
-  to_string := (fun sp => 
-                  match sp with
-                  | ALL => all_name_constant
-                  | NONE => none_name_constant
-                  end);
-  from_string := (fun s => 
-                    if (String.eqb s all_name_constant)
-                    then res ALL
-                    else if (String.eqb s none_name_constant)
-                    then res NONE
-                    else err err_str_json_parsing_SP);
-  canonical_stringification := fun s => match s with
-                                        | ALL => eq_refl
-                                        | NONE => eq_refl
-                                        end
-}.
-
 Definition ASP_to_JSON `{Stringifiable Plc, Jsonifiable ASP_ARGS} (t : ASP) : JSON := 
   match t with
   | NULL => constructor_to_JSON STR_ASP null_name_constant []
@@ -494,42 +468,20 @@ try (unfold ASP_from_JSON, ASP_to_JSON, from_JSON_gen; ff;
   unfold ASP_PARAMS_from_JSON in *; ff u; jsonifiable_hammer.
 Defined.
 
-Global Instance Jsonifiable_Split : Jsonifiable Split := {
-  to_JSON := (fun '(s1, s2) => 
-                JSON_Object [
-                  (split1_name_constant, JSON_String (to_string s1));
-                  (split2_name_constant, JSON_String (to_string s2))
-                ]);
-  from_JSON := (fun js => 
-                  match (JSON_get_string split1_name_constant js), (JSON_get_string split2_name_constant js) with
-                  | res s1, res s2 => 
-                    s1 <- from_string s1 ;;
-                    s2 <- from_string s2 ;;
-                    res (s1, s2)
-                  | _, _ => err err_str_json_parsing_failure_wrong_number_args
-                  end);
-  canonical_jsonification := fun '(s1, s2) => 
-                              match s1, s2 with
-                              | ALL, ALL => eq_refl
-                              | NONE, NONE => eq_refl
-                              | _, _ => eq_refl
-                              end
-}.
-
-Fixpoint Term_to_JSON `{Jsonifiable ASP, Jsonifiable Split} (t : Term) : JSON := 
+Fixpoint Term_to_JSON `{Jsonifiable ASP} (t : Term) : JSON := 
   match t with
   | asp a => constructor_to_JSON STR_TERM asp_name_constant [(to_JSON a)]
   | att p t' => constructor_to_JSON STR_TERM att_name_constant 
       [(JSON_String (to_string p)); (Term_to_JSON t')]
   | lseq t1 t2 => constructor_to_JSON STR_TERM lseq_name_constant
       [(Term_to_JSON t1); (Term_to_JSON t2)]
-  | bseq sp t1 t2 => constructor_to_JSON STR_TERM bseq_name_constant
-      [(to_JSON sp); (Term_to_JSON t1); (Term_to_JSON t2)]
-  | bpar sp t1 t2 => constructor_to_JSON STR_TERM bpar_name_constant
-      [(to_JSON sp); (Term_to_JSON t1); (Term_to_JSON t2)]
+  | bseq t1 t2 => constructor_to_JSON STR_TERM bseq_name_constant
+      [(Term_to_JSON t1); (Term_to_JSON t2)]
+  | bpar t1 t2 => constructor_to_JSON STR_TERM bpar_name_constant
+      [(Term_to_JSON t1); (Term_to_JSON t2)]
   end.
 
-Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Result Term string :=
+Fixpoint Term_from_JSON `{Jsonifiable ASP} (js : JSON) : Result Term string :=
     let type_name := STR_TERM in
     let type_str := type_name ++ type_sep ++ type_string_constant in
     let body_str := type_name ++ type_sep ++ body_string_constant in
@@ -566,24 +518,22 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
       then match js with
         | JSON_Object [
             _;
-            (_, JSON_Array [ sp; term1; term2 ])
+            (_, JSON_Array [ term1; term2 ])
           ] =>
-            sp_val <- from_JSON sp ;;
             term1_val <- (Term_from_JSON term1) ;;
             term2_val <- (Term_from_JSON term2) ;;
-            res (bseq sp_val term1_val term2_val)
+            res (bseq term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
       else if (String.eqb cons_name bpar_name_constant) 
       then match js with
         | JSON_Object [
             _;
-            (_, JSON_Array [ sp; term1; term2 ])
+            (_, JSON_Array [ term1; term2 ])
          ] =>
-            sp_val <- from_JSON sp ;;
             term1_val <- (Term_from_JSON term1) ;;
             term2_val <- (Term_from_JSON term2) ;;
-            res (bpar sp_val term1_val term2_val)
+            res (bpar term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
       else err err_str_json_invalid_constructor_name
@@ -591,7 +541,7 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP, Jsonifiable Split} (js : JSON) : Resu
     | err e => err e
     end.
 
-Global Instance Jsonifiable_Term `{Jsonifiable ASP, Jsonifiable Split} : Jsonifiable Term. 
+Global Instance Jsonifiable_Term `{Jsonifiable ASP} : Jsonifiable Term. 
 eapply Build_Jsonifiable with (to_JSON := Term_to_JSON) (from_JSON := Term_from_JSON).
 induction a; 
 repeat (ff u;

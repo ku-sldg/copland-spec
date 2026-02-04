@@ -73,14 +73,6 @@ Inductive EvidenceT :=
 | right_evt   : EvidenceT -> EvidenceT
 | split_evt   : EvidenceT -> EvidenceT -> EvidenceT.
 
-(** Evidene routing types:  
-      ALL:   pass through all EvidenceT
-      NONE   pass through empty EvidenceT
-*)
-Inductive SP: Set :=
-| ALL
-| NONE.
-
 (** Primitive Copland phases 
 
     NULL:    Empty out EvidenceT (optionally with a strong "zeroize" effect)
@@ -112,10 +104,6 @@ Record GlobalContext `{DecEq ASP_ID} := {
 
 (** Pair of EvidenceT splitters that indicate routing EvidenceT to subterms 
     of branching phrases *)
-Definition Split: Set := (SP * SP).
-
-(** Pair of EvidenceT splitters that indicate routing EvidenceT to subterms 
-    of branching phrases *)
 
 (** Main Copland phrase datatype definition.
         A term is either an atomic ASP (Attestation Service Provider), 
@@ -125,8 +113,8 @@ Inductive Term :=
 | asp: ASP -> Term
 | att: Plc -> Term -> Term
 | lseq: Term -> Term -> Term
-| bseq: Split -> Term -> Term -> Term
-| bpar: Split -> Term -> Term -> Term.
+| bseq: Term -> Term -> Term
+| bpar: Term -> Term -> Term.
 
 Definition EvidenceT_depth : EvidenceT -> nat :=
   fix F e :=
@@ -695,14 +683,8 @@ Notation "<{ e }>" := e (at level 0, e custom copland_entry at level 99) : cop_e
 Notation "( x )" := x (in custom copland_entry, x at level 99) : cop_ent_scope.
 Notation "x" := x (in custom copland_entry at level 0, x constr at level 0) : cop_ent_scope.
 (* Branches*)
-Notation "x -<- y" := (bseq (NONE, NONE) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x +<- y" := (bseq (ALL, NONE) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x -<+ y" := (bseq (NONE, ALL) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x +<+ y" := (bseq (ALL, ALL) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x -~- y" := (bpar (NONE, NONE) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x +~- y" := (bpar (ALL, NONE) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x -~+ y" := (bpar (NONE, ALL) x y) (in custom copland_entry at level 70, right associativity).
-Notation "x +~+ y" := (bpar (ALL, ALL) x y) (in custom copland_entry at level 70, right associativity).
+Notation "x < y" := (bseq x y) (in custom copland_entry at level 70, right associativity).
+Notation "x ~ y" := (bpar x y) (in custom copland_entry at level 70, right associativity).
 (* ARROW sequences *)
 Notation "x -> y" := (lseq x y) (in custom copland_entry at level 99, right associativity).
 (* ASP's *)

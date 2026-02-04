@@ -512,17 +512,55 @@ Proof.
   erewrite equiv_preserves_denotation_size.
   ff.
 Qed.
-(* 
-Theorem well_formed_evidence_et_size : forall G e n,
-  evt_stack_denotation G e n ->
-  et_size G e = res n.
-Proof.
-  intros G.
-  induction e using (Evidence_subterm_path_Ind_special G); ff u, l;
-  try (invc H; ff a; fail);
-  try (invc H1; ff a; fail);
-  unpack_atebs; ff a.
-  - invc H1; ff a.
-    pp (normalize_preserves_size _ _ _ H6).
-    eapply H0; ff.
-  - invc H1; ff a. *)
+
+(** Typechecking 
+
+Here we actually introduce and utilize the typechecking rules
+*)
+
+(* Inductive typeof (G : GlobalContext) : CopPhrase -> EvidenceT -> Prop :=
+| tc_null : forall p e,
+    typeof G (cop_phrase p e (asp NULL)) mt_evt
+| tc_sig : forall p e n attrs,
+    evt_stack_denotation G e n ->
+    1 <= n -> (* cannot sign empty evidence *)
+    (asp_types G) ![ sig_aspid ] = Some (ev_arrow (EXTEND 1) attrs InAll) ->
+    typeof G (cop_phrase p e (asp SIG)) (asp_evt p sig_params e)
+| tc_hsh : forall p e n attrs,
+    evt_stack_denotation G e n ->
+    1 <= n -> (* cannot hash empty evidence *)
+    (asp_types G) ![ hsh_aspid ] = Some (ev_arrow (REPLACE 1) attrs InAll) ->
+    typeof G (cop_phrase p e (asp HSH)) (asp_evt p hsh_params e)
+| tc_enc : forall p e n attrs p',
+    evt_stack_denotation G e n ->
+    1 <= n -> (* cannot encrypt empty evidence *)
+    (asp_types G) ![ enc_aspid ] = Some (ev_arrow (WRAP 1) attrs InAll) ->
+    typeof G (cop_phrase p e (asp (ENC p'))) (asp_evt p (enc_params p') e)
+| tc_in_none : forall p e fwd aid args attrs,
+    evt_stack_denotation G e 0 -> (* must have empty evidence as input *)
+    (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs InNone) ->
+    typeof G 
+      (cop_phrase p e (asp (ASPC (asp_paramsC aid args)))) 
+      (asp_evt p (asp_paramsC aid args) e)
+| tc_in_all : forall p e n fwd aid args attrs,
+    evt_stack_denotation G e n ->
+    1 <= n -> (* cannot have empty evidence as input *)
+    (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs InAll) ->
+    typeof G
+      (cop_phrase p e (asp (ASPC (asp_paramsC aid args))))
+      (asp_evt p (asp_paramsC aid args) e)
+| tc_att : forall p q e t' e',
+    typeof G (cop_phrase q e t') e' ->
+    typeof G (cop_phrase p e (att q t')) e'
+| tc_lseq : forall p e t1 t2 e1 e2,
+    typeof G (cop_phrase p e t1) e1 ->
+    typeof G (cop_phrase p e1 t2) e2 ->
+    typeof G (cop_phrase p e (lseq t1 t2)) e2
+| tc_bseq : forall p e t1 t2 e1 e2,
+    typeof G (cop_phrase p e t1) e1 ->
+    typeof G (cop_phrase p e t2) e2 ->
+    typeof G (cop_phrase p e (bseq t1 t2)) (split_evt e1 e2)
+| tc_par : forall p e t1 t2 e1 e2,
+    typeof G (cop_phrase p e t1) e1 ->
+    typeof G (cop_phrase p e t2) e2 ->
+    typeof G (cop_phrase p e (par t1 t2)) (split_evt e1 e2). *)

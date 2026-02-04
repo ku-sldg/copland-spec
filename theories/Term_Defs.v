@@ -18,36 +18,6 @@ From CoplandSpec Require Export Term_Defs_Core Term_Defs_Core_Typeclasses Built_
 From RocqCandy Require Import All.
 Import ResultNotation.
 
-Definition splitEv_T_l (sp:Split) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | (ALL,_) => e
-  |  _ => mt_evt
-  end.
-
-Definition splitEv_T_r (sp:Split) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | (_,ALL) => e
-  |  _ => mt_evt
-  end.
-
-Definition splitEv_l (sp:Split) (e:Evidence): Evidence :=
-  match sp with
-  | (ALL, _) => e
-  | _ => mt_evc
-  end.
-
-Definition splitEv_r (sp:Split) (e:Evidence): Evidence :=
-  match sp with
-  | (_,ALL) => e
-  | _ => mt_evc
-  end.
-
-Definition sp_ev (sp:SP) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | ALL => e
-  | NONE => mt_evt
-  end.
-
 Definition equiv_EvidenceT `{DecEq ASP_ID, DecEq nat} (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
   n1 <- et_size G e1 ;;
   n2 <- et_size G e2 ;;
@@ -245,13 +215,13 @@ Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t :
   | lseq t1 t2 => 
       e1 <- eval G p e t1 ;;
       eval G p e1 t2
-  | bseq s t1 t2 => 
-      e1 <- eval G p (splitEv_T_l s e) t1 ;; 
-      e2 <- eval G p (splitEv_T_r s e) t2 ;;
+  | bseq t1 t2 => 
+      e1 <- eval G p e t1 ;; 
+      e2 <- eval G p e t2 ;;
       res (split_evt e1 e2)
-  | bpar s t1 t2 => 
-      e1 <- eval G p (splitEv_T_l s e) t1 ;; 
-      e2 <- eval G p (splitEv_T_r s e) t2 ;;
+  | bpar t1 t2 => 
+      e1 <- eval G p e t1 ;; 
+      e2 <- eval G p e t2 ;;
       res (split_evt e1 e2)
   end.
 
@@ -340,13 +310,13 @@ Fixpoint events_size `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : Evidence
     e2 <- events_size G p e' t2 ;; (* next e2 events are done *)
     res (e1 + e2) (* +e1 for first evs, +e2 for second evs *)
   
-  | bseq s t1 t2 => 
-    e1 <- events_size G p (splitEv_T_l s e) t1 ;; (* left does e1 events *)
-    e2 <- events_size G p (splitEv_T_r s e) t2 ;; (* right does e2 events *)
+  | bseq t1 t2 => 
+    e1 <- events_size G p e t1 ;; (* left does e1 events *)
+    e2 <- events_size G p e t2 ;; (* right does e2 events *)
     res (2 + e1 + e2) (* +1 for split; +e1,+e2 for sides, +1 for join *)
-  | bpar s t1 t2 => 
-    e1 <- events_size G p (splitEv_T_l s e) t1 ;; (* left does e1 events *)
-    e2 <- events_size G p (splitEv_T_r s e) t2 ;; (* right does e2 events *)
+  | bpar t1 t2 => 
+    e1 <- events_size G p e t1 ;; (* left does e1 events *)
+    e2 <- events_size G p e t2 ;; (* right does e2 events *)
     (* + 1 for split, +1 for thread_start; +e1,+e2 for sides, +1 for thread_join, + 1 for join *)
     res (4 + e1 + e2) 
   end.
