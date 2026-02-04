@@ -518,9 +518,18 @@ Qed.
 Here we actually introduce and utilize the typechecking rules
 *)
 
-(* Inductive typeof (G : GlobalContext) : CopPhrase -> EvidenceT -> Prop :=
+Inductive typeof (G : GlobalContext) : CopPhrase -> EvidenceT -> Prop :=
+(* Atomic ASP TC Rules *)
+(* 
+
+We outlaw NULL
+- why? because allowing it will almost ASSUREDLY break provenance
+  preservation, as NULL evidence will always discard the input "e"
+  and return empty evidence, making it impossible to recover "e"
+
 | tc_null : forall p e,
-    typeof G (cop_phrase p e (asp NULL)) mt_evt
+    typeof G (cop_phrase p e (asp NULL)) mt_evt 
+*)
 | tc_sig : forall p e n attrs,
     evt_stack_denotation G e n ->
     1 <= n -> (* cannot sign empty evidence *)
@@ -549,6 +558,7 @@ Here we actually introduce and utilize the typechecking rules
     typeof G
       (cop_phrase p e (asp (ASPC (asp_paramsC aid args))))
       (asp_evt p (asp_paramsC aid args) e)
+(* Operator TC Rules *)
 | tc_att : forall p q e t' e',
     typeof G (cop_phrase q e t') e' ->
     typeof G (cop_phrase p e (att q t')) e'
@@ -563,4 +573,121 @@ Here we actually introduce and utilize the typechecking rules
 | tc_par : forall p e t1 t2 e1 e2,
     typeof G (cop_phrase p e t1) e1 ->
     typeof G (cop_phrase p e t2) e2 ->
-    typeof G (cop_phrase p e (par t1 t2)) (split_evt e1 e2). *)
+    typeof G (cop_phrase p e (bpar t1 t2)) (split_evt e1 e2)
+(* Appraisal TC Rules *)
+| tc_appr_mt : forall p e,
+    canon_ev_rep G e = mt_evt ->
+    typeof G (cop_phrase p e (asp APPR)) e
+| tc_appr_nonce : forall p e n,
+    canon_ev_rep G e = nonce_evt n ->
+    typeof G (cop_phrase p e (asp APPR)) (asp_evt p check_nonce_params e)
+| tc_appr_asp : forall p e aid args e' appr_id,
+    canon_ev_rep G e = asp_evt p (asp_paramsC aid args) e' ->
+    (asp_comps G) ![ aid ] = Some appr_id ->
+    typeof G (cop_phrase p e (asp APPR)) (asp_evt p (asp_paramsC appr_id args) e)
+| tc_appr_split : forall p el er el' er' e,
+    canon_ev_rep G e = split_evt el er ->
+    typeof G (cop_phrase p (left_evt e) (asp APPR)) el' ->
+    typeof G (cop_phrase p (right_evt e) (asp APPR)) er' ->
+    typeof G (cop_phrase p e (asp APPR)) (split_evt el' er').
+
+(** Provenance Preserving *)
+(* 
+The provenance of evidence "e" is said to be preserved if future
+operations or typechecking will always allow the recovery of "e" from
+the resulting evidence type.
+
+It is essentially just a subterm relation, but we define it here
+*)
+
+Inductive provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
+| prov_refl : forall e, provenance G e e
+| prov_left_inj : forall e e',
+    provenance G e e' ->
+    provenance G (left_evt e) (left_evt e')
+| prov_left : forall e e',
+    provenance G e e' ->
+    provenance G e (left_evt e')
+| prov_right_inj : forall e e',
+    provenance G e e' ->
+    provenance G (right_evt e) (right_evt e')
+| prov_right : forall e e',
+    provenance G e e' ->
+    provenance G e (right_evt e')
+| prov_split_inj : forall l r el er,
+    provenance G el l ->
+    provenance G er r ->
+    provenance G (split_evt el er) (split_evt l r)
+| prov_split_l : forall e l r,
+    provenance G e l ->
+    provenance G e (split_evt l r)
+| prov_split_r : forall e l r,
+    provenance G e r ->
+    provenance G e (split_evt l r)
+| prov_asp_inj : forall e p aid args e',
+    provenance G e e' ->
+    provenance G (asp_evt p (asp_paramsC aid args) e) (asp_evt p (asp_paramsC aid args) e')
+| prov_asp : forall e p aid args e',
+    provenance G e e' ->
+    provenance G e (asp_evt p (asp_paramsC aid args) e').
+Local Hint Constructors provenance : prov.
+
+Ltac2 Notation "prover" := (ff (fun () => eauto with prov)).
+
+Lemma provenance_trans : forall G e1 e2 e3,
+  provenance G e1 e2 ->
+  provenance G e2 e3 ->
+  provenance G e1 e3.
+Proof.
+  intros.
+  prep_induction H0.
+  induction H0; ff; eauto using provenance.
+  - invc H; eauto using provenance.
+  - invc H; eauto using provenance.
+  - invc H; eauto using provenance.
+  - invc H; eauto using provenance.
+Qed.
+Local Hint Resolve provenance_trans : prov.
+
+Compute (normalize_ev (Build_GlobalContext _ [] []) (split_evt (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) (nonce_evt 3))).
+
+Example normalize_provenance :
+  provenance (Build_GlobalContext _ [] []) (split_evt (nonce_evt 1) (nonce_evt 3)) 
+    (split_evt (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))) (nonce_evt 3)).
+Proof.
+  eauto with prov.
+Qed.
+
+Lemma canon_ev_rep_provenance : forall G e,
+  provenance G (canon_ev_rep G e) e.
+Proof.
+  intros.
+  unfold canon_ev_rep.
+  induction e;
+  ltac1:( simp normalize_ev ); prover.
+
+  destruct a;
+  ltac1:( simp normalize_ev in * ).
+  prover.
+Qed.
+
+Theorem typecheck_preserves_provenance : forall G t p e e',
+  typeof G (cop_phrase p e t) e' ->
+  provenance G e e'.
+Proof.
+  induction t; ff.
+  - destruct a.
+    * invc H.
+    * invc H; eapply prov_asp; prover.
+    * invc H; eapply prov_asp; prover.
+    * invc H; eapply prov_asp; prover.
+    * prep_induction H.
+      induction H; try congruence; prover.
+      eapply prov_asp; prover.
+    * invc H; eapply prov_asp; prover.
+  - invc H. ff.
+  - invc H; ff a;
+    find_eapply_lem_hyp provenance_trans; ff.
+  - invc H; ff a; eauto using provenance.
+  - invc H; ff a; eauto using provenance.
+Qed.
