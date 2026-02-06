@@ -108,6 +108,8 @@ Definition err_str_evoutsig_json_constructor := "Invalid EvOutSig JSON construct
 
 Definition err_str_invalid_evinsig_json := "Invalid EvInSig JSON".
 
+Definition err_str_invalid_fwd_value_negative := "Invalid FWD value: Requires a positive (> 0) integer".
+
 Definition err_str_json_parsing_failure_wrong_number_args :=
   "Error parsing JSON: Wrong number of arguments".
 

@@ -50,7 +50,7 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
     let '(asp_paramsC asp_id args) := ps in
     match (asp_types G) ![ asp_id ] with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow fwd attrs in_sig) =>
+    | Some (ev_arrow fwd attrs) =>
       match (asp_comps G) ![ asp_id ] with
       | None => err err_str_asp_no_compat_appr_asp
       | Some appr_id =>
@@ -62,7 +62,7 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           (* apply the dual to get a new evidence to operate on, then recurse *)
           match (asp_types G) ![ appr_id ] with
           | None => err err_str_asp_no_type_sig
-          | Some (ev_arrow UNWRAP attrs in_sig') =>
+          | Some (ev_arrow UNWRAP attrs) =>
             let ev_out' := asp_evt p dual_par ev_out in
             F e' ev_out'
           | _ => err err_str_appr_compute_evt_neq
@@ -75,7 +75,7 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           r <- apply_to_evidence_below G (fun e => F e ev_out) [Trail_UNWRAP asp_id] e' ;;
           r
 
-        | EXTEND _ => 
+        | EXTEND _ _ => 
           (* appraisal of an extend involves doing the appraisal of the extension
           and then separately the appraisal of the underlying *)
           ev_under <- F e' e' ;;
@@ -111,9 +111,9 @@ Module Testing.
   Qed.
 
   Example appr_procedure_ex2 : forall G p attrs,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP 1) attrs InAll) ->
+    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP (exist _ 1 Nat.lt_0_1)) attrs) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs InAll) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs) ->
     appr_procedure G p (asp_evt p (enc_params p) (nonce_evt 1)) = 
     res (
       asp_evt p check_nonce_params (
@@ -137,9 +137,9 @@ Module Testing.
   Qed.
 
   Example appr_procedure_ex4 : forall G p attrs,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP 1) attrs InAll) ->
+    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP (exist _ 1 Nat.lt_0_1)) attrs) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs InAll) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs) ->
     appr_procedure G p (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2))) = res (split_evt 
       (asp_evt p check_nonce_params 
         (left_evt 
@@ -191,12 +191,12 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
     lookup asp_id (asp_comps G) <> None /\
     (match ((asp_types G) ![ asp_id ]) with
     | None => False
-    | Some (ev_arrow fwd attrs in_sig) =>
+    | Some (ev_arrow fwd attrs) =>
       match fwd with
       | REPLACE _ => True
       | WRAP _ => F e'
       | UNWRAP => F e'
-      | EXTEND _ => F e'
+      | EXTEND _ _ => F e'
       end
     end)
   | left_evt e' => 
@@ -260,7 +260,7 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
     let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow asp_fwd attrs in_sig) =>
+    | Some (ev_arrow asp_fwd attrs) =>
       match asp_fwd with
       | REPLACE _ => res 1 (* Single dual appr asp for 1 *)
       | WRAP _ => 
@@ -271,7 +271,7 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
         (* we are just doing the recursion *)
         r <- apply_to_evidence_below G F [Trail_UNWRAP asp_id] e' ;; 
         r
-      | EXTEND _ => 
+      | EXTEND _ _ => 
         (* we need the size of recursing *)
         n <- F e' ;;
         res (3 + n) (* split (1), extend dual (1), rec case (n), join (1) *)
@@ -349,7 +349,7 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
       let dual_par := asp_paramsC appr_id args in
       match ((asp_types G) ![ asp_id ]) with
       | None => err err_str_asp_no_type_sig
-      | Some (ev_arrow fwd attrs in_sig) =>
+      | Some (ev_arrow fwd attrs) =>
         match fwd with
         | REPLACE _ => (* single dual for replace *)
           res ([umeas i p dual_par ev_out])
@@ -365,7 +365,7 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           r <- apply_to_evidence_below G (fun e' => F e' ev_out i) [Trail_UNWRAP asp_id] e' ;;
           r
 
-        | EXTEND _ => (* do the extend dual *)
+        | EXTEND _ _ => (* do the extend dual *)
           (* ev_out does not change for the umeas event,
           but it is replaced by e' for the recursive call
           as the extend does not effect the underlying evidence! *)
