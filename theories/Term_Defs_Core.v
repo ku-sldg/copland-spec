@@ -222,7 +222,7 @@ Theorem Evidence_Subterm_path_trans : forall `{DecEq ASP_ID} G l1 e1 e2,
 Proof.
   intros.
   prep_induction H1.
-  induction H1; ff (fun () => eauto using Evidence_Subterm_path).
+  induction H1; ff with (eauto using Evidence_Subterm_path).
 Qed.
 
 Lemma Evidence_Subterm_path_never_grows : forall `{HD : DecEq ASP_ID} G e' l e,
@@ -231,7 +231,7 @@ Lemma Evidence_Subterm_path_never_grows : forall `{HD : DecEq ASP_ID} G e' l e,
 Proof.
   intros; 
   prep_induction H; induction H; 
-  ff l.
+  ff with lia.
 Qed.
 
 (* Lemma Evidence_Subterm_path_nil : forall `{HD : DecEq ASP_ID} G e e',
@@ -249,12 +249,12 @@ Lemma Evidence_Subterm_path_depth_cons : forall `{HD : DecEq ASP_ID} G h t e e',
 Proof.
   intros.
   prep_induction H.
-  induction H; intros; try congruence; subst; ff u, l;
+  induction H; intros; try congruence; subst; ff with u, l;
   destruct t > [
     (* find_eapply_lem_hyp Evidence_Subterm_path_nil; ff l *)
-    find_eapply_lem_hyp Evidence_Subterm_path_never_grows; ff l
+    find_eapply_lem_hyp Evidence_Subterm_path_never_grows; ff with l
     |
-    pp (IHEvidence_Subterm_path _ _ eq_refl); ff l
+    pp (IHEvidence_Subterm_path _ _ eq_refl); ff with l
   ].
 Qed.
 
@@ -264,9 +264,9 @@ Lemma Evidence_Subterm_path_depth : forall `{HD : DecEq ASP_ID} G l e e',
 Proof.
   intros.
   destruct l.
-  - find_eapply_lem_hyp Evidence_Subterm_path_never_grows; ff l.
+  - find_eapply_lem_hyp Evidence_Subterm_path_never_grows; ff with l.
   (* - find_eapply_lem_hyp Evidence_Subterm_path_nil; ff l. *)
-  - find_eapply_lem_hyp Evidence_Subterm_path_depth_cons; ff l.
+  - find_eapply_lem_hyp Evidence_Subterm_path_depth_cons; ff with l.
 Qed.
 
 Theorem Evidence_subterm_path_Ind_special `{DecEq ASP_ID} G (P : EvidenceT -> Prop)
@@ -552,17 +552,17 @@ Lemma apply_to_evidence_below_res_spec : forall {A} G (f : _ -> A) e v l,
   apply_to_evidence_below G f l e = res v ->
   (exists e', Evidence_Subterm_path G e' l e /\ f e' = v).
 Proof.
-  induction e; simpl in *; intros; intuition; ff u.
-  all: eauto using Evidence_Subterm_path; ff a.
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
-  - eexists; split > [ | reflexivity ]; ff (fun () => eauto using Evidence_Subterm_path).
+  induction e; simpl in *; intros; intuition; ff with u.
+  all: eauto using Evidence_Subterm_path; ff with a.
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
+  - eexists; split > [ | reflexivity ]; ff with (eauto using Evidence_Subterm_path).
 Qed.
 
 (* Lemma apply_to_evidence_below_nil : forall A G (f : _ -> A) e v,
@@ -579,7 +579,7 @@ Lemma apply_to_evidence_below_res : forall {A} G (fn1 : _ -> A) e l r,
   (forall {B} (fn2 : _ -> B),
     exists r', apply_to_evidence_below G fn2 l e = res r').
 Proof.
-  induction e; ff u.
+  induction e; ff with u.
 Qed.
 
 Lemma apply_to_evidence_below_errs_det : forall {A B} G (fn1 : _ -> A) (fn2 : _ -> B) e l r1 r2,
@@ -587,7 +587,7 @@ Lemma apply_to_evidence_below_errs_det : forall {A B} G (fn1 : _ -> A) (fn2 : _ 
   apply_to_evidence_below G fn2 l e = err r2 ->
   r1 = r2.
 Proof.
-  induction e; ff u.
+  induction e; ff with u.
 Qed.
 
 (**  Calculate the size of an EvidenceT type *)
@@ -649,14 +649,14 @@ Lemma peel_n_rawev_result_spec : forall n ls ls1 ls2,
   peel_n_rawev n ls = res (ls1, ls2) ->
   ls = ls1 ++ ls2 /\ length ls1 = n.
 Proof.
-  induction n; ff u, a.
+  induction n; ff with u, a.
 Qed.
 
 Lemma peel_n_rawev_none_spec : forall n ls e,
   peel_n_rawev n ls = err e ->
   length ls < n.
 Proof.
-  induction n; ff u, a, l.
+  induction n; ff with u, a, l.
 Qed.
 
 (**  Type-Tagged Raw EvidenceT representation.  Used as the internal EvidenceT

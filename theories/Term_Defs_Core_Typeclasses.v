@@ -40,7 +40,7 @@ Proof.
   induction js; simpl in *; intuition; 
   jsonifiable_hammer.
   unfold depth_js_map.
-  eapply fold_right_ind; ff l.
+  eapply fold_right_ind; ff with l.
   right; exists (s, js'); simpl in *; split; try lia; eauto.
   find_eapply_lem_hyp @lookup_impl_in; ff.
 Defined.
@@ -50,14 +50,16 @@ Lemma json_all_map_elements_smaller : forall js m s,
   lt (JSON_depth js) (JSON_depth (JSON_Object m)).
 Proof.
   induction m; simpl in *; intuition; try congruence;
-  jsonifiable_hammer; ff u, l, a.
+  jsonifiable_hammer; ff with u, l, a.
 Defined.
 
 Lemma json_all_array_elements_smaller : forall js ls,
   In js ls ->
   lt (JSON_depth js) (JSON_depth (JSON_Array ls)).
 Proof.
-  induction ls; ff l, a.
+  induction ls; ff with l, a.
+  unfold depth_js_array in *.
+  lia.
 Defined.
 
 Global Instance Jsonifiable_ASP_ARGS : Jsonifiable ASP_ARGS. 
@@ -219,7 +221,7 @@ eapply Build_Jsonifiable with
   (to_JSON := EvCombSig_to_JSON)
   (from_JSON := EvCombSig_from_JSON).
 intuition; simpl in *;
-unfold EvCombSig_to_JSON, EvCombSig_from_JSON; ff l;
+unfold EvCombSig_to_JSON, EvCombSig_from_JSON; ff with l;
 Control.enter (fun () =>
   pp (Arith.Peano_dec.le_unique); repeat (f_equal; ff)
 ).
@@ -339,7 +341,7 @@ eapply Build_Jsonifiable with
 (to_JSON := EvSig_to_JSON)
 (from_JSON := EvSig_from_JSON);
 unfold EvSig_from_JSON, EvSig_to_JSON;
-destruct a; ff u; jsonifiable_hammer.
+destruct a; ff with u; jsonifiable_hammer.
 Defined.
 
 Fixpoint EvidenceT_to_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable ASP_PARAMS} (e : EvidenceT) : JSON := 
@@ -428,7 +430,7 @@ Fixpoint EvidenceT_from_JSON `{Jsonifiable nat, Stringifiable Plc, Jsonifiable A
 
 Global Instance Jsonifiable_EvidenceT `{Stringifiable Plc, Jsonifiable ASP_ARGS, Jsonifiable nat, Jsonifiable ASP_PARAMS} : Jsonifiable EvidenceT.
 eapply Build_Jsonifiable with (to_JSON := EvidenceT_to_JSON) (from_JSON := EvidenceT_from_JSON).
-induction a; ff u; jsonifiable_hammer.
+induction a; ff with u; jsonifiable_hammer.
 Defined.
 
 Definition ASP_to_JSON `{Stringifiable Plc, Jsonifiable ASP_ARGS} (t : ASP) : JSON := 
@@ -484,10 +486,10 @@ try (unfold ASP_from_JSON, ASP_to_JSON, from_JSON_gen; ff;
   try (unfold sig_name_constant in *);
   try (unfold hsh_name_constant in *);
   try (unfold enc_name_constant in *); ff).
-- induction a; unfold constructor_from_JSON, constructor_body_from_JSON_gen; ff u;
-  unfold ASP_PARAMS_from_JSON in *; ff u; jsonifiable_hammer.
-- unfold constructor_from_JSON, constructor_body_from_JSON_gen; ff u;
-  unfold ASP_PARAMS_from_JSON in *; ff u; jsonifiable_hammer.
+- induction a; unfold constructor_from_JSON, constructor_body_from_JSON_gen; ff with u;
+  unfold ASP_PARAMS_from_JSON in *; ff with u; jsonifiable_hammer.
+- unfold constructor_from_JSON, constructor_body_from_JSON_gen; ff with u;
+  unfold ASP_PARAMS_from_JSON in *; ff with u; jsonifiable_hammer.
 Defined.
 
 Fixpoint Term_to_JSON `{Jsonifiable ASP} (t : Term) : JSON := 
@@ -566,7 +568,7 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP} (js : JSON) : Result Term string :=
 Global Instance Jsonifiable_Term `{Jsonifiable ASP} : Jsonifiable Term. 
 eapply Build_Jsonifiable with (to_JSON := Term_to_JSON) (from_JSON := Term_from_JSON).
 induction a; 
-repeat (ff u;
+repeat (ff with u;
 jsonifiable_hammer; repeat (rewrite canonical_jsonification in *); eauto).
 Defined.
 
@@ -589,7 +591,7 @@ Global Instance Jsonifiable_RawEv : Jsonifiable RawEv.
                                     end) js'
                   | err e => err e
                   end)).
-induction a; ff u; jsonifiable_hammer.
+induction a; ff with u; jsonifiable_hammer.
 Defined.
 
 Global Instance Jsonifiable_Evidence `{Jsonifiable RawEv, Jsonifiable EvidenceT}: Jsonifiable Evidence.

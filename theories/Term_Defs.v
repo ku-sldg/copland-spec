@@ -122,7 +122,7 @@ Module Testing.
     ).
   Proof.
     unfold appr_procedure.
-    ff a, r, u, l; unfold equiv_EvidenceT in *; ff.
+    ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
   Qed.
 
   Example appr_procedure_ex3 : forall G p,
@@ -473,14 +473,23 @@ Lemma appr_events'_size_works : forall G p e ev_out i evs,
 Proof.
   intros G.
   induction e using (Evidence_subterm_path_Ind_special G); 
-  simpl in *; intros; intuition; ff u, a;
+  simpl in *; intros; intuition; ff with u, a;
   ateb_simp; ff;
   try (repeat (rewrite length_app in *); simpl in *; f_equal; lia).
 Qed.
+(* Opaque appr_events'. *)
 
 Definition appr_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat) 
     : Result (list Ev) string :=
   appr_events' G p e e i.
+
+Lemma appr_events_size_works : forall G p e i evs,
+  appr_events G p e i = res evs ->
+  appr_events_size G e = res (List.length evs).
+Proof.
+  intros.
+  eapply appr_events'_size_works; ff.
+Qed.
 
 Definition asp_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
     (a : ASP) (i : nat) : Result (list Ev) string :=
@@ -497,8 +506,7 @@ Lemma asp_appr_events_size_works : forall G p e i evs,
   asp_events G p e APPR i = res evs ->
   appr_events_size G e = res (List.length evs).
 Proof.
-  induction e; ff;
-  try (find_eapply_lem_hyp appr_events'_size_works; ff).
+  induction e; ff with (try (find_eapply_lem_hyp appr_events_size_works)).
 Qed.
 
 Lemma asp_events_size_works : forall G p a e i evs,
@@ -540,7 +548,7 @@ Lemma true_last_app_spec : forall A (l1 l2 : list A) x,
   true_last (l1 ++ l2) = Some x ->
   (true_last l1 = Some x /\ l2 = nil) \/ true_last l2 = Some x.
 Proof.
-  induction l1; ff a, r;
+  induction l1; ff with a, r;
   find_eapply_lem_hyp true_last_none_iff_nil; 
   find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
@@ -561,11 +569,11 @@ Lemma appr_events'_deterministic_index : forall G p e ev_out i evs,
     ev v' = i + List.length evs - 1.
 Proof.
   intros G.
-  induction e using (Evidence_subterm_path_Ind_special G); ff u, a, l;
+  induction e using (Evidence_subterm_path_Ind_special G); ff with u, a, l;
   try (solve_true_last_app);
   try (solve_true_last_none);
-  unpack_atebs; ff a, l.
-  - find_eapply_lem_hyp IHe; ff l; lia.
+  unpack_atebs; ff with a, l.
+  - find_eapply_lem_hyp IHe; ff with lia; lia.
   - find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
 
@@ -575,6 +583,6 @@ Theorem asp_events_deterministic_index : forall G p a e i evs,
     true_last evs = Some v' ->
     ev v' = i + List.length evs - 1.
 Proof.
-  induction a; ff l;
+  induction a; ff with l;
   eapply appr_events'_deterministic_index; eauto.
 Qed.

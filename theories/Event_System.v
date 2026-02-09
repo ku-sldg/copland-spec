@@ -84,10 +84,10 @@ Proof.
   split.
   - generalizeEverythingElse t; induction t;
     simpl in *; intuition; invc H; eauto;
-    ff a.
+    ff with a.
   - generalizeEverythingElse t; induction t;
     simpl in *; intuition;
-    ff u, a; econstructor; eauto.
+    ff with u, a; econstructor; eauto.
 Qed.
     
 Lemma events_range: forall G t p e evs i,
