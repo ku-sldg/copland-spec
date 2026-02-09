@@ -403,8 +403,8 @@ Proof.
       invc H0; evter;
       unfold canon_ev_rep in *;
       normer; evter.
-      eapply normalize_ev_done in Heq1.
-      ltac1:( simp normalize_ev in Heq1 ).
+      eapply normalize_ev_done in Heq5.
+      ltac1:( simp normalize_ev in Heq5 ).
       ff.
     + erewrite <- Heqcall in *.
       invc H0; evter;
@@ -431,9 +431,8 @@ Proof.
       unfold canon_ev_rep in *.
       destruct a.
       normer.
-      ff.
       eapply interp_left; ff with u.
-      eapply normalize_ev_done in Heq1.
+      eapply normalize_ev_done in Heq4.
       normer.
     + rewrite <- Heqcall in *.
       invc H0.
