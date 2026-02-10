@@ -506,7 +506,8 @@ Lemma asp_appr_events_size_works : forall G p e i evs,
   asp_events G p e APPR i = res evs ->
   appr_events_size G e = res (List.length evs).
 Proof.
-  induction e; ff with (try (find_eapply_lem_hyp appr_events_size_works)).
+  unfold asp_events.
+  eapply appr_events_size_works.
 Qed.
 
 Lemma asp_events_size_works : forall G p a e i evs,
@@ -583,6 +584,5 @@ Theorem asp_events_deterministic_index : forall G p a e i evs,
     true_last evs = Some v' ->
     ev v' = i + List.length evs - 1.
 Proof.
-  induction a; ff with l;
-  eapply appr_events'_deterministic_index; eauto.
+  induction a; ff with l, (eapply appr_events'_deterministic_index).
 Qed.
