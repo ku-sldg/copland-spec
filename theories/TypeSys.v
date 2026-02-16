@@ -745,6 +745,25 @@ Proof.
   - eapply equiv_preserves_denotation_size_rev.
 Qed.
 
+Lemma evt_stack_denotation_deterministic : forall G e n1 n2,
+  evt_stack_denotation G e n1 ->
+  evt_stack_denotation G e n2 ->
+  n1 = n2.
+Proof.
+  intros.
+  prep_induction H.
+  induction H; ff.
+  - invc H0; ff.
+  - invc H0; ff.
+  - invc H1; ff.
+  - invc H1; ff.
+  - invc H1; ff.
+  - invc H1; ff.
+  - invc H1; ff.
+  - invc H1; ff.
+  - invc H4; ff.
+Qed.
+
 Theorem equiv_preserves_wf_EvidenceT : forall G e,
   wf_EvidenceT G e ->
   forall e',
@@ -760,6 +779,100 @@ Proof.
   exists x.
   erewrite equiv_preserves_denotation_size.
   ff.
+Qed.
+
+Definition evt_stack_denotation_size (G : GlobalContext) (e : EvidenceT) 
+    : { n | evt_stack_denotation G e n } + { forall n, ~ evt_stack_denotation G e n }.
+Proof.
+  induction e using (normalize_ev_rect_custom G).
+  - ref (inleft (exist _ 0 (interp_mt _))).
+  - ref (inleft (exist _ 1 (interp_nonce _ _))).
+  - destruct IHe1 as [[n1 Hn1] | Hn1].
+    + left; exists n1; evter.
+    + right; intros n HC.
+      eapply Hn1.
+      erewrite equiv_preserves_denotation_size in HC.
+      normer.
+  - destruct IHe as [[n1 Hn1] | Hn1];
+    right; intros n HC; invc HC; ff.
+  - destruct IHe1 as [[n1 Hn1] | Hn1].
+    + left; exists n1; evter.
+    + right; intros n HC.
+      eapply Hn1.
+      erewrite equiv_preserves_denotation_size in HC.
+      normer.
+  - destruct IHe as [[n1 Hn1] | Hn1];
+    right; intros n HC; invc HC; ff.
+  - ff; try (Control.enter (fun () => 
+      right;
+      intros n HC;
+      invc HC;
+      try (eapply Hsumor_r; ff)
+    ); fail).
+    destruct Hsumor_l0 as [n1 Hn1];
+    destruct Hsumor_l as [n2 Hn2].
+    left; eexists; evter.
+  - ff; try (Control.enter (fun () => 
+      right;
+      intros n HC;
+      invc HC;
+      try (eapply Hsumor_r; ff)
+    ); fail).
+    destruct Hsumor_l as [n1 Hn1].
+    left; eexists; evter.
+  - destruct IHe1;
+    try (Control.enter (fun () => 
+      right;
+      intros ? HC;
+      invc HC; ff;
+      unfold not in *;
+      ff
+    ); fail).
+
+    ff; destruct s as [n1 Hn1];
+    Control.enter (fun () => repeat (match! goal with
+    | [ n : pos_nat |- _ ] => 
+      let n := Control.hyp n in
+      destruct $n
+    end));
+    try (left; eexists; evter; fail);
+    try (Control.enter (fun () => 
+      right;
+      intros ? HC;
+      invc HC; ff;
+      unfold not in *;
+      ff
+    ); fail).
+  - destruct IHe1;
+    try (Control.enter (fun () => 
+      right; intros ? HC; invc HC;
+      eapply n; erewrite <- equiv_preserves_denotation_size; ff
+    ); fail).
+
+    ff; destruct s as [n1 Hn1];
+    Control.enter (fun () => repeat (match! goal with
+    | [ n : pos_nat |- _ ] => 
+      let n := Control.hyp n in
+      destruct $n
+    end)).
+
+    destruct ((asp_types G) ![ aid ]) eqn:Ht;
+    try (Control.enter (fun () => 
+      right; intros ? HC; invc HC; ff
+    ); fail);
+    destruct e, e;
+    try (Control.enter (fun () => 
+      right; intros ? HC; invc HC; ff
+    ); fail);
+    erewrite <- equiv_preserves_denotation_size in * |-;
+    Control.enter (fun () => repeat (match! goal with
+    | [ n : pos_nat |- _ ] => 
+      let n := Control.hyp n in
+      destruct $n
+    end));
+    try (left; eexists; evter; fail).
+    Unshelve.
+    all: exact 0.
 Qed.
 
 (** Typechecking 
@@ -803,11 +916,11 @@ We outlaw NULL
     typeof G 
       p e (asp (ASPC (asp_paramsC aid args)))
       (asp_evt p (asp_paramsC aid args) e)
-| tc_extend_in_all : forall p e aid args attrs n nlt,
+| tc_extend_in_all : forall p e aid args attrs n n_ext nlt,
     evt_stack_denotation G e n ->
     1 <= n -> (* cannot have empty evidence as input *)
     (asp_types G) ![ aid ] 
-      = Some (ev_arrow (EXTEND (exist _ n nlt) InAll) attrs) ->
+      = Some (ev_arrow (EXTEND (exist _ n_ext nlt) InAll) attrs) ->
     typeof G 
       p e (asp (ASPC (asp_paramsC aid args)))
       (asp_evt p (asp_paramsC aid args) e)
@@ -1924,99 +2037,6 @@ Proof.
   - invc H; ff with a; eauto using provenance.
 Qed.
 
-(*
-Lemma csa_asp_step : forall G p e a args fwd attrs, 
-  ContextSupportsAppr G e ->
-  asp_supported G a ->
-  fwd <> UNWRAP ->
-  (asp_types G) ![ a ] = Some (ev_arrow fwd attrs) ->
-  ContextSupportsAppr G (asp_evt p (asp_paramsC a args) e).
-Proof.
-  intros.
-  erewrite CSA_norm_exact in *.
-  norm.
-  ff with (eauto with csa).
-  - invc H; normer.
-    eapply csa_asp_nonce; normer.
-  - 
-    invc H.
-    + 
-    eapply csa_asp_asp.
-    * eapply normalize_ev_done in Heq as ?.
-      ff.
-    * ff.
-    * admit.
-    * admit.
-    * 
-
-  intros.
-  prep_induction H.
-  induction H; ff with (eauto with csa).
-  - 
-
-
-
-
-  intros.
-  generalizeEverythingElse e.
-  intros G.
-  
-  (* The Key Strategy: Destruct the normalization of e *)
-  induction e using (normalize_ev_ind_custom G); intros.
-
-  (* destruct (normalize_ev G e) eqn:Hnorm. *)
-  
-  - (* Case: mt_evt *)
-    eapply csa_asp_mt; eauto.
-
-  - (* Case: nonce_evt *)
-    eapply CSA_norm_sound in Hcsa as ?.
-    normer.
-    invc H; normer.
-    eapply csa_asp_nonce; eauto.
-    normer.
-  
-  - 
-    eapply CSA_norm_sound in Hcsa as ?.
-    normer.
-    ff with a.
-    eapply CSA_norm_complete.
-    normer.
-
-  - 
-    eapply CSA_norm_sound in Hcsa as ?.
-    normer; 
-    try ( find_eapply_lem_hyp normalize_ev_done; invc H0; normer; fail).
-
-  - eapply CSA_norm_sound in Hcsa as ?.
-    normer; 
-    ff with a.
-    eapply CSA_norm_complete.
-    normer.
-  - 
-    eapply CSA_norm_sound in Hcsa as ?.
-    normer; 
-    try ( find_eapply_lem_hyp normalize_ev_done; invc H0; normer; fail).
-
-  - (* true split *)
-    invc Hcsa; normer.
-    eapply csa_asp_split > [ normer | | | | | ]; ff.
-
-  - (* Case: asp_evt *)
-    normer.
-    eapply CSA_norm_sound in Hcsa as ?.
-    norm.
-    ff with a.
-    eapply CSA_norm_complete.
-    norm.
-    ff.
-
-  - 
-    eapply csa_asp_asp; normer.
-
-  - eapply csa_asp_asp; normer.
-Qed. *)
-
 (* Major Theorem: Appraisability *)
 Theorem well_typed_appraisable : forall G e p,
   ContextSupportsAppr G e ->
@@ -2202,3 +2222,228 @@ Proof.
     eapply CSA_appraisal_complete.
     ff.
 Qed.
+
+Fixpoint term_size (t : Term) : nat :=
+  match t with
+  | asp APPR => 0 (* this is handled outside *)
+  | asp _ => 1
+  | att _ t' => S (term_size t')
+  | lseq t1 t2 => S (term_size t1 + term_size t2)
+  | bseq t1 t2 => S (term_size t1 + term_size t2)
+  | bpar t1 t2 => S (term_size t1 + term_size t2)
+  end.
+
+Fixpoint term_ev_size (e : EvidenceT) (t : Term) : nat :=
+  match t with
+  | asp APPR => EvidenceT_depth e
+  | asp _ => 1
+  | att _ t' => S (term_ev_size e t')
+  | lseq t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
+  | bseq t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
+  | bpar t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
+  end.
+
+Equations? typeof_fix (G : GlobalContext) (p : Plc) (t : Term) (e : EvidenceT) 
+  : { e' & typeof G p e t e' } + { forall e', typeof G p e t e' -> False } 
+    by wf (term_size t) lt :=
+  typeof_fix G p (asp APPR) e := typeof_appr_decidable G p e ;
+  typeof_fix G p (asp NULL) e := (* always false *) inright (fun e' Htyp => _) ;
+  typeof_fix G p (asp SIG) e := _;
+  typeof_fix G p (asp HSH) e := _;
+  typeof_fix G p (asp (ENC p')) e := _;
+  typeof_fix G p (asp (ASPC (asp_paramsC aid args))) e := _;
+  typeof_fix G p (att q t) e := 
+    match typeof_fix G q t e with
+    | inleft (existT _ e' Htyp) => 
+        inleft (existT _ e' (tc_att _ _ _ _ _ _ Htyp))
+    | inright Hnty => 
+        inright (fun e' Htyp => Hnty _ _)
+    end ;
+  typeof_fix G p (lseq t1 t2) e := 
+    match typeof_fix G p t1 e with
+    | inleft (existT _ e1 Htyp1) => 
+        match typeof_fix G p t2 e1 with
+        | inleft (existT _ e2 Htyp2) => 
+            inleft (existT _ _ (tc_lseq _ _ _ _ _ _ _ Htyp1 Htyp2))
+        | inright Hnty2 => inright (fun e2 Htyp => _)
+        end
+    | inright Hnty1 => inright (fun e1 Htyp => _)
+    end ;
+  typeof_fix G p (bseq t1 t2) e := 
+    match typeof_fix G p t1 e, typeof_fix G p t2 e with
+    | inleft (existT _ e1 Htyp1), inleft (existT _ e2 Htyp2) => 
+        inleft (existT _ (split_evt e1 e2) 
+          (tc_bseq _ _ _ _ _ _ _ Htyp1 Htyp2)
+        )
+    | inright Hnty1, _ => inright (fun e1 Htyp => _)
+    | _, inright Hnty2 => inright (fun e2 Htyp => _)
+    end ;
+  typeof_fix G p (bpar t1 t2) e := 
+    match typeof_fix G p t1 e, typeof_fix G p t2 e with
+    | inleft (existT _ e1 Htyp1), inleft (existT _ e2 Htyp2) => 
+        inleft (existT _ (split_evt e1 e2) 
+          (tc_bpar _ _ _ _ _ _ _ Htyp1 Htyp2)
+        )
+    | inright Hnty1, _ => inright (fun e1 Htyp => _)
+    | _, inright Hnty2 => inright (fun e2 Htyp => _)
+    end.
+all: try (ff with l; fail).
+all: try (invc Htyp; ff; fail).
+- destruct ((asp_types G) ![ aid ]) eqn:?;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct e0, e0;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  + (* arbitrary ASP - replace *)
+    destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+    destruct n as [n nlt].
+    (* destruct (dec_eq n 1); ff; 
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in * ); ff; fail). *)
+    destruct (le_dec 1 nden).
+    * left; eexists; eapply tc_in_all; ff.
+    * right.
+      intros e' Htyp.
+      invc Htyp;
+      Control.enter (fun () =>
+        match! goal with
+        | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+            h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+          let h1v := Control.hyp h1 in
+          let h2v := Control.hyp h2 in
+          pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+        end
+      ).
+  + (* arbitrary ASP - wrap *)
+    destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+    destruct n as [n nlt].
+    (* destruct (dec_eq n 1); ff; 
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in * ); ff; fail). *)
+    destruct (le_dec 1 nden).
+    * left; eexists; eapply tc_in_all; ff.
+    * right.
+      intros e' Htyp.
+      invc Htyp;
+      Control.enter (fun () =>
+        match! goal with
+        | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+            h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+          let h1v := Control.hyp h1 in
+          let h2v := Control.hyp h2 in
+          pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+        end
+      ).
+  + (* arbitrary ASP - replace *)
+    destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+    destruct (le_dec 1 nden).
+    * left; eexists; eapply tc_in_all; ff.
+    * right.
+      intros e' Htyp.
+      invc Htyp;
+      Control.enter (fun () =>
+        match! goal with
+        | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+            h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+          let h1v := Control.hyp h1 in
+          let h2v := Control.hyp h2 in
+          pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+        end
+      ).
+  + destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+    try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+    destruct n as [n nlt].
+    destruct (dec_eq nden 0); ff.
+    -- (* 0 incoming, better be InNone  *)
+      destruct e0; ff; try (
+        right; intros e' Htyp;
+        invc Htyp; ff;
+        Control.enter (fun () =>
+        match! goal with
+        | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+            h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+          let h1v := Control.hyp h1 in
+          let h2v := Control.hyp h2 in
+          pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+        end; ff with l); fail).
+      left; eexists; eapply tc_extend_in_none; ff.
+    -- (* more than 1 incoming, better be InAll *)
+      destruct e0; ff; try (
+        right; intros e' Htyp;
+        invc Htyp; ff;
+        Control.enter (fun () =>
+        match! goal with
+        | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+            h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+          let h1v := Control.hyp h1 in
+          let h2v := Control.hyp h2 in
+          pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+        end; ff with l); fail).
+      left; eexists; eapply tc_extend_in_all; ff with l.
+- destruct ((asp_types G) ![ sig_aspid ]) eqn:?;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct e0, e0;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct e0;
+  destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct n as [n nlt].
+  destruct (dec_eq n 1); ff; 
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct (le_dec 1 nden).
+  * left; eexists; eauto using typeof.
+  * right.
+    intros e' Htyp.
+    invc Htyp.
+    match! goal with
+    | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+        h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+      let h1v := Control.hyp h1 in
+      let h2v := Control.hyp h2 in
+      pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+    end.
+- destruct ((asp_types G) ![ hsh_aspid ]) eqn:?;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct e0, e0;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct n as [n nlt].
+  destruct (dec_eq n 1); ff; 
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct (le_dec 1 nden).
+  * left; eexists; eauto using typeof.
+  * right.
+    intros e' Htyp.
+    invc Htyp.
+    match! goal with
+    | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+        h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+      let h1v := Control.hyp h1 in
+      let h2v := Control.hyp h2 in
+      pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+    end.
+- destruct ((asp_types G) ![ enc_aspid ]) eqn:?;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct e0, e0;
+  try (right; intros e' Htyp; invc Htyp; ff; fail).
+  destruct (evt_stack_denotation_size G e) as [[nden Hnden] |];
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct n as [n nlt].
+  destruct (dec_eq n 1); ff; 
+  try (right; intros e' Htyp; invc Htyp; try (unfold not in *); ff; fail).
+  destruct (le_dec 1 nden).
+  * left; eexists; eauto using typeof.
+  * right.
+    intros e' Htyp.
+    invc Htyp.
+    match! goal with
+    | [ h1 : evt_stack_denotation ?_g ?_e _ , 
+        h2 : evt_stack_denotation ?_g ?_e _ |- _ ] =>
+      let h1v := Control.hyp h1 in
+      let h2v := Control.hyp h2 in
+      pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
+    end.
+- invc Htyp.
+  eapply typeof_deterministic in Htyp1; try (eapply X0); ff.
+Defined.
