@@ -2245,8 +2245,6 @@ Proof.
   ff.
 Qed.
 
-Print Assumptions well_typed_appraisable.
-
 (* This justifies that the type system enforces the non-commutativity of evidence *)
 Theorem evidence_non_commutative : forall p,
   (* NOTE: This could probably be strengthed, but it is at least good evidence *)
