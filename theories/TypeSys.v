@@ -2588,3 +2588,239 @@ all: try (invc Htyp; ff; fail).
 - invc Htyp.
   eapply typeof_deterministic in Htyp1; try (eapply X0); ff.
 Defined.
+
+(** Reconstructibility: 
+
+  This is the property that the original evidence "e" can be reconstructed from the resulting evidence type "e'" (after typechecking).
+
+  This is important for the ability to perform "HSH" operations on evidence,
+  as if the input evidence to a "HSH" is *not* reconstructible, then 
+  we cannot properly appraise it!
+*)
+Inductive reconstructible (G : GlobalContext) : EvidenceT -> Prop :=
+  (* empty evidence can always be reconstructed *)
+  | reconstr_mt : forall e,
+      normalize_ev G e = mt_evt ->
+      reconstructible G e
+  (* nonce's must be reconstructible from a nonce DB *)
+  | reconstr_nonce : forall e n, 
+      normalize_ev G e = nonce_evt n ->
+      reconstructible G e
+  (* ASP's are where is gets interesting:
+    an ASP is reconstructible if the normalized evidence is:
+    1. it is an "EXTEND _" and the outer ASP has the "Reconstr" attribute, 
+        and the inner evidence is reconstructible
+    2. it is a "REPLACE" and the outer ASP has the "Reconstr" attribute, 
+        and the inner evidence is reconstructible
+    3. it is a "UNWRAP" of a "WRAP" and the outer ASP has the "Reconstr" attribute, 
+        and the inner evidence is reconstructible
+  *)
+  | reconstr_asp : forall e p aid args,
+      reconstructible G e ->
+      match (asp_types G) ![ aid ] with
+      | Some (ev_arrow (EXTEND n isig) attrs) => In Reconstr attrs
+      | Some (ev_arrow (REPLACE n) attrs) => In Reconstr attrs
+      | _ => False
+      end ->
+      reconstructible G (asp_evt p (asp_paramsC aid args) e)
+  | reconstr_unwrap_wrap : forall e e' p p' aid aid' args args',
+      normalize_ev G e = asp_evt p' (asp_paramsC aid' args') e' ->
+      reconstructible G e' ->
+      match (asp_types G) ![ aid ] with
+      | Some (ev_arrow UNWRAP attrs) => 
+        match (asp_types G) ![ aid' ] with
+        | Some (ev_arrow (WRAP n) _) => 
+          match (asp_comps G) ![ aid' ] with
+          | Some test_aid => test_aid = aid
+          | None => False
+          end
+        | _ => False
+        end
+      | _ => False
+      end ->
+      reconstructible G (asp_evt p (asp_paramsC aid args) e)
+  | reconstr_left : forall e l r,
+      normalize_ev G e = split_evt l r ->
+      reconstructible G l ->
+      reconstructible G (left_evt e)
+  | reconstr_right : forall e l r,
+      normalize_ev G e = split_evt l r ->
+      reconstructible G r ->
+      reconstructible G (right_evt e)
+  (* Split's both sides must be reconstructible *)
+  | reconstr_split : forall e l r,
+      normalize_ev G e = split_evt l r ->
+      reconstructible G l ->
+      reconstructible G r ->
+      reconstructible G e
+.
+
+Lemma reconstructible_normalize : forall G e,
+  reconstructible G e ->
+  reconstructible G (normalize_ev G e).
+Proof.
+  intros.
+  induction H.
+  - normer; eapply reconstr_mt; normer.
+  - normer; eapply reconstr_nonce; normer.
+  - normer; eapply reconstr_asp; ff.
+  - normer; eapply reconstr_unwrap_wrap; ff.
+  - normer; eapply reconstr_left; ff.
+  - normer; eapply reconstr_right; ff.
+  - normer; eapply reconstr_split > [ norm | | ]; ff.
+Qed.
+
+Lemma normalize_reconstructible : forall G e,
+  reconstructible G (normalize_ev G e) ->
+  reconstructible G e.
+Proof.
+  intros G e.
+  induction e using (normalize_ev_rect_custom G); intros;
+  try (normer; fail).
+  - normer; eapply reconstr_left; normer.
+  - normer; invc H0; normer; eapply normalize_ev_done in Heq; normer.
+  - normer; eapply reconstr_right; normer.
+  - normer; invc H0; normer; eapply normalize_ev_done in Heq; normer.
+  - normer; invc H; normer;
+    erewrite normalize_ev_idempotent in *.
+    eapply reconstr_split > [ norm | | ]; ff.
+  - normer; eapply reconstr_unwrap_wrap; ff.
+  - normer;
+    try (invc H1; normer; ff with a; 
+      try (eapply reconstr_asp; ff; fail); fail).
+    invc H1; normer; eapply normalize_ev_done in Heq; normer.
+  - normer.
+    + invc H1; normer;
+      eapply reconstr_asp; ff; eapply reconstr_mt; ff.
+    + invc H1; normer;
+      eapply reconstr_asp; ff; eapply reconstr_nonce; ff.
+    + invc H1; normer; eapply normalize_ev_done in Heq as ?; normer;
+      try (solve [invc H3; normer]);
+      eapply normalize_ev_measure_decrease in Heq2; ff with l.
+    + invc H1; normer; eapply normalize_ev_done in Heq as ?; normer;
+      try (solve [invc H3; normer]);
+      eapply normalize_ev_measure_decrease in Heq2; ff with l.
+    + invc H1; normer;
+      invc H3; normer;
+      eapply normalize_ev_done in Heq as ?; normer;
+      eapply reconstr_asp; ff; eapply reconstr_split; ff.
+Qed.
+
+Lemma reconstructible_iff_normalize : forall G e,
+  reconstructible G e <-> reconstructible G (normalize_ev G e).
+Proof.
+  pps reconstructible_normalize, normalize_reconstructible.
+  ff.
+Qed.
+
+Theorem reconstructible_decidable : forall G e,
+  {reconstructible G e} + {~ (reconstructible G e)}.
+Proof.
+  intros G e.
+  induction e using (normalize_ev_rect_custom G).
+  - left; solve [ econstructor; normer ].
+  - left; solve [ econstructor; normer ].
+  - ff.
+    -- left; eapply reconstr_left; normer.
+    -- right.
+      intros HC.
+      invc HC.
+      + normer; eapply Hsumb_r; eapply reconstr_mt > [ norm ]; ff.
+      + normer; eapply Hsumb_r; eapply reconstr_nonce > [ norm ]; ff.
+      + normer.
+      + normer; eapply Hsumb_r;
+        eapply reconstr_split > [ norm | | ]; ff;
+        eapply reconstructible_normalize; ff.
+  - destruct IHe.
+    -- right; intros HC; invc HC; normer.
+    -- right.
+      intros HC.
+      invc HC.
+      + normer; eapply Hsumb_r; eapply reconstr_mt > [ norm ]; ff.
+      + normer; eapply Hsumb_r; eapply reconstr_nonce > [ norm ]; ff.
+      + normer.
+      + normer; eapply Hsumb_r;
+        eapply reconstr_split > [ norm | | ]; ff;
+        eapply reconstructible_normalize; ff.
+  - ff.
+    -- left; eapply reconstr_right; normer.
+    -- right.
+      intros HC.
+      invc HC.
+      + normer; eapply Hsumb_r; eapply reconstr_mt > [ norm ]; ff.
+      + normer; eapply Hsumb_r; eapply reconstr_nonce > [ norm ]; ff.
+      + normer.
+      + normer; eapply Hsumb_r;
+        eapply reconstr_split > [ norm | | ]; ff;
+        eapply reconstructible_normalize; ff.
+  - destruct IHe.
+    -- right; intros HC; invc HC; normer.
+    -- right.
+      intros HC.
+      invc HC.
+      + normer; eapply Hsumb_r; eapply reconstr_mt > [ norm ]; ff.
+      + normer; eapply Hsumb_r; eapply reconstr_nonce > [ norm ]; ff.
+      + normer.
+      + normer; eapply Hsumb_r;
+        eapply reconstr_split > [ norm | | ]; ff;
+        eapply reconstructible_normalize; ff.
+  - destruct IHe1, IHe2;
+    try (right; intros HC; invc HC; normer;
+      erewrite <- reconstructible_iff_normalize in *; ff;
+      fail
+    ).
+    left; eapply reconstr_split > [ norm | | ]; 
+    erewrite reconstructible_iff_normalize in * |- ; ff.
+  - destruct IHe1.
+    * left; eapply reconstr_unwrap_wrap; ff.
+    * right.
+      intros HC.
+      eapply n.
+      invc HC; normer. 
+      + eapply reconstr_mt; normer.
+      + eapply reconstr_nonce; normer.
+      + eapply reconstr_split > [ norm | | ]; ff;
+        eapply reconstructible_normalize; ff.
+  - destruct IHe1.
+    * normer;
+      try (right; intros HC; invc HC; normer; fail);
+      try (destruct (in_dec dec_eq Reconstr l) > [
+          left; eapply reconstr_asp; normer
+          |
+          right; intros HC; invc HC; normer
+        ]; fail).
+
+    * right; intros HC; eapply n;
+      invc HC; normer. 
+  - destruct IHe1.
+    * normer.
+      erewrite <- reconstructible_iff_normalize in *.
+      destruct ((asp_types G) ![ aid ]) eqn:?;
+      try (right; intros HC; invc HC; normer; ff; fail).
+      destruct e,e;
+      try (right; intros HC; invc HC; normer; ff; fail);
+      try (destruct (in_dec dec_eq Reconstr l) > [
+          left; eapply reconstr_asp; normer
+          |
+          right; intros HC; invc HC; normer
+        ]; fail).
+
+    * right; intros HC; eapply n;
+      invc HC; normer;
+      erewrite <- reconstructible_iff_normalize in *; ff.
+Qed.
+
+Example enc_hash_not_reconstructible : forall G p e e',
+  typeof G p e (lseq (asp (ENC p)) (asp HSH)) e' ->
+  ~ (reconstructible G e').
+Proof.
+  intros.
+  prep_induction X.
+  induction X; ff.
+  
+  invc X1.
+  invc X2.
+  unfold hsh_params, enc_params in *.
+  invc HC; normer.
+  invc H7; normer.
+Qed.

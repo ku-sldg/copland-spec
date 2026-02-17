@@ -297,6 +297,10 @@ Proof.
   ltac1:(exfalso); eauto.
 Qed.
 
+Global Instance DecEq_Attr : DecEq Attr.
+build_deq.
+Defined.
+
 Definition Attr_to_JSON (t : Attr) : JSON := 
   match t with
   | Reconstr => JSON_String attr_reconstr_constant

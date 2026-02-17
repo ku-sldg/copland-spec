@@ -6,7 +6,6 @@
 (coq.theory
  (name CoplandSpec)
  (package rocq-copland-spec)
- 
- 
+ (theories Stdlib RocqCandy RocqJSON Ltac2 Equations)
+ (coqdoc_flags :standard --light)
  (synopsis "Specification for the Copland DSL for Attestation Protocols"))
-
