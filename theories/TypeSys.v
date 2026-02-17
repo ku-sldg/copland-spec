@@ -1931,6 +1931,147 @@ the resulting evidence type.
 
 It is essentially just a subterm relation, but we define it here
 *)
+Inductive str_provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
+  | str_prov_refl : forall e, str_provenance G e e
+  | str_prov_left : forall e e',
+      str_provenance G e e' ->
+      str_provenance G e (left_evt e')
+  | str_prov_right : forall e e',
+      str_provenance G e e' ->
+      str_provenance G e (right_evt e')
+  (* Split is unique:
+    - we allow the duplication (in fact it is what happens in the left and right rules), 
+      but we don't allow the "joining" of two different evidences into one split, 
+      because that would lose provenance information.
+
+      Thus, we only have the "injection" rule for split, but not the "left" and "right" rules for split.
+  *)
+  | str_prov_split_inj : forall l r e,
+      str_provenance G e l ->
+      str_provenance G e r ->
+      str_provenance G e (split_evt l r)
+  | str_prov_asp : forall e p aid args e',
+      str_provenance G e e' ->
+      str_provenance G e (asp_evt p (asp_paramsC aid args) e').
+
+Theorem str_provenance_monotonic : forall G e e',
+  str_provenance G e e' ->
+  EvidenceT_depth e <= EvidenceT_depth e'.
+Proof.
+  intros.
+  induction H; ff with l.
+Qed.
+
+Lemma str_provenance_trans : forall G e1 e2 e3,
+  str_provenance G e1 e2 ->
+  str_provenance G e2 e3 ->
+  str_provenance G e1 e3.
+Proof.
+  intros.
+  prep_induction H0.
+  induction H0; ff; eauto using str_provenance.
+Qed.
+
+Theorem typecheck_preserves_str_provenance : forall G t p e e',
+  typeof G p e t e' ->
+  str_provenance G e e'.
+Proof.
+  intros.
+  induction X; eauto using str_provenance.
+  - eapply str_provenance_trans; ff.
+  - eapply str_prov_split_inj;
+    eapply str_provenance_trans > [ | eassumption ];
+    eauto using str_provenance.
+Qed.
+
+(** Evidence Contextual Hole: 
+  This forces explicit provenance (as evidence must be plugged into some hole)
+  and relevance (as the hole must be plugged with the original evidence, not some other one)
+  as well as contraction 
+  (as the same evidence can be plugged into multiple holes (specifically in split), 
+    but not different evidences into different holes).
+*)
+Inductive EvContext :=
+  | Hole : EvContext
+  (* Structural Wrappers *)
+  | Ctx_Left : EvContext -> EvContext
+  | Ctx_Right : EvContext -> EvContext
+  (* The Contraction Constructor: 'e' is used in BOTH sub-trees *)
+  | Ctx_Split_Branch : EvContext -> EvContext -> EvContext 
+  (* ASP Wrapper: We can only ever wrap 1 deep!! *)
+  | Ctx_Asp : Plc -> ASP_PARAMS -> EvContext -> EvContext.
+
+(* The Plug Semantics *)
+Fixpoint plug (c : EvContext) (e : EvidenceT) : EvidenceT :=
+  match c with
+  | Hole => e
+  | Ctx_Left c' => left_evt (plug c' e)
+  | Ctx_Right c' => right_evt (plug c' e)
+  (* Contraction: Plug 'e' into both c1 and c2 *)
+  | Ctx_Split_Branch c1 c2 => split_evt (plug c1 e) (plug c2 e)
+  | Ctx_Asp p args c' => asp_evt p args (plug c' e)
+  end.
+  
+(* Composition of Contexts: Essential for proving sequential operations (lseq) *)
+Fixpoint compose (outer inner : EvContext) : EvContext :=
+  match outer with
+  | Hole => inner
+  | Ctx_Left c' => Ctx_Left (compose c' inner)
+  | Ctx_Right c' => Ctx_Right (compose c' inner)
+  | Ctx_Split_Branch c1 c2 => Ctx_Split_Branch (compose c1 inner) (compose c2 inner)
+  | Ctx_Asp p par c' => Ctx_Asp p par (compose c' inner)
+  end.
+
+Lemma plug_compose : forall outer inner e,
+  plug (compose outer inner) e = plug outer (plug inner e).
+Proof.
+  induction outer; ff; congruence.
+Qed.
+
+Definition ordered_provenance (e e' : EvidenceT) := 
+  { c : EvContext | plug c e = e' }.
+
+Theorem typeof_ordered_provenance : forall G p e t e',
+  typeof G p e t e' ->
+  ordered_provenance e e'.
+Proof.
+  intros G p e t e' H.
+  unfold ordered_provenance.
+  induction H.
+  (* ASPs & Single paths *)
+  - exists (Ctx_Asp p sig_params Hole); reflexivity.
+  - exists (Ctx_Asp p hsh_params Hole); reflexivity.
+  - exists (Ctx_Asp p (enc_params p') Hole); reflexivity.
+  - exists (Ctx_Asp p (asp_paramsC aid args) Hole); reflexivity.
+  - exists (Ctx_Asp p (asp_paramsC aid args) Hole); reflexivity.
+  - exists (Ctx_Asp p (asp_paramsC aid args) Hole); reflexivity.
+  - destruct IHtypeof as [c Hplug]; exists c; assumption.
+  - destruct IHtypeof1 as [c1 Hplug1]; 
+    destruct IHtypeof2 as [c2 Hplug2].
+    exists (compose c2 c1); rewrite plug_compose; congruence.
+  (* --- The Parallel Cases (Contraction) --- *)
+  - (* tc_bseq: e flows into BOTH t1 and t2 *)
+    destruct IHtypeof1 as [c1 Hplug1].
+    destruct IHtypeof2 as [c2 Hplug2].
+    (* We use the Branching constructor! *)
+    exists (Ctx_Split_Branch c1 c2); ff.
+  - (* tc_bpar: Symmetric to bseq *)
+    destruct IHtypeof1 as [c1 Hplug1].
+    destruct IHtypeof2 as [c2 Hplug2].
+    exists (Ctx_Split_Branch c1 c2); ff.
+  (* --- Appraisal Cases --- *)
+  - (* tc_appr_mt *) exists Hole; reflexivity.
+  - (* tc_appr_nonce *) exists (Ctx_Asp p check_nonce_params Hole); reflexivity.
+  - (* tc_appr_asp_unwrap *) exists (Ctx_Asp p (asp_paramsC appr_id args) Hole); reflexivity.
+  - (* tc_appr_asp *) exists (Ctx_Asp p (asp_paramsC appr_id args) Hole); reflexivity.
+  - (* tc_appr_split *)
+    destruct IHtypeof1 as [c1 Hplug1].
+    destruct IHtypeof2 as [c2 Hplug2].
+    exists (Ctx_Split_Branch 
+             (compose c1 (Ctx_Left Hole)) 
+             (compose c2 (Ctx_Right Hole)));
+    ff; repeat (rewrite plug_compose); ff.
+Defined.
 
 Inductive provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
   | prov_refl : forall e, provenance G e e
