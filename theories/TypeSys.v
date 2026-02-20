@@ -1318,209 +1318,6 @@ Proof.
     * eauto using same_modulo_plc.
 Qed.
 
-(*
-Lemma typeof_appr_place_irrel : forall G p e r, 
-  typeof G p e (asp APPR) r -> 
-  forall q, { r' & typeof G q e (asp APPR) r' }.
-Proof.
-  intros G p e r H.
-  prep_induction H.
-  induction H; ff;
-  try (eexists; eauto using typeof; fail).
-  - (* tc_appr_asp *)
-    destruct (IHtypeof eq_refl q) as [tyrec Htyrec].
-    eapply (appr_canon_invariant G q _ e') in Htyrec > [
-      | normer; eapply normalize_ev_done in e0; norm; ff
-    ].
-    destruct Htyrec as [r' Htyrec].
-    invc H.
-    * eexists; eauto using typeof.
-    * eexists; eauto using typeof.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_unwrap_wrap
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 ]; ff.
-
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_unwrap_wrap
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 ]; ff.
-
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_unwrap_wrap
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 ]; ff.
-
-    * 
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = split_evt el er) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_unwrap_wrap 
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 ];
-      ff.
-  - (* tc_appr_asp *)
-    invc H.
-    * eexists; eauto using typeof.
-    * eexists; eauto using typeof.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_replace
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_replace
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_replace
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-
-    * 
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = split_evt el er) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_replace
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-  - (* tc_appr_asp *)
-    invc H.
-    * eexists; eauto using typeof.
-    * eexists; eauto using typeof.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_extend
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_extend
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-    *
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = asp_evt p'0 (asp_paramsC aid0 args0) e'0) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_extend
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-
-    * 
-      edestruct (IHtypeof eq_refl q).
-      assert (e' = split_evt el er) as Heq.
-      {
-        eapply normalize_ev_done in e0 as ?.
-        norm.
-        repeat find_rewrite.
-        repeat break_match; ff.
-        (* eapply canon_ev_canonical in H5; ff with l. *)
-      }
-      subst.
-      eexists.
-      eapply tc_appr_asp_extend
-      > [ | eapply e0 | eapply e1 | eapply e2 | eapply e3 | ]; ff.
-  - (* tc_appr_split *)
-    destruct (IHtypeof1 eq_refl q);
-    destruct (IHtypeof2 eq_refl q);
-    eexists; eauto using typeof.
-Qed.
-*)
-
 Theorem typeof_deterministic : forall G t p e e1 e2,
   typeof G p e t e1 ->
   typeof G p e t e2 ->
@@ -1754,62 +1551,40 @@ Definition asp_supported (G : GlobalContext) aid : Prop :=
 
 Inductive ContextSupportsAppr (G : GlobalContext) : EvidenceT -> Type :=
   | csa_mt : forall e,
-    normalize_ev G e = mt_evt ->
-    ContextSupportsAppr G e
-  | csa_nonce : forall e n nlt attrs,
-    normalize_ev G e = nonce_evt n ->
-    (asp_types G) ![ check_nonce_aspid ] = Some (ev_arrow (REPLACE (exist _ 1 nlt)) attrs) ->
-    ContextSupportsAppr G e
-  | csa_left : forall e' l r,
-      normalize_ev G e' = split_evt l r ->
-      ContextSupportsAppr G l ->
-      ContextSupportsAppr G (left_evt e')
-  | csa_right : forall e' l r,
-      normalize_ev G e' = split_evt l r ->
-      ContextSupportsAppr G r ->
-      ContextSupportsAppr G (right_evt e')
-  | csa_split : forall e l r,
-      normalize_ev G e = split_evt l r ->
-      ContextSupportsAppr G l ->
-      ContextSupportsAppr G r ->
+      normalize_ev G e = mt_evt ->
       ContextSupportsAppr G e
-  | csa_asp_mt : forall p aid args e' fwd attrs,
-      normalize_ev G e' = mt_evt ->
-      (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) ->
-      fwd <> UNWRAP ->
-      asp_supported G aid ->
-      ContextSupportsAppr G (asp_evt p (asp_paramsC aid args) e')
-  | csa_asp_nonce : forall p aid args e' attrs'' n nlt fwd attrs,
-      normalize_ev G e' = nonce_evt n ->
-      (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) ->
-      fwd <> UNWRAP ->
-      asp_supported G aid ->
-      (asp_types G) ![ check_nonce_aspid ] = Some (ev_arrow (REPLACE (exist _ 1 nlt)) attrs'') ->
-      ContextSupportsAppr G (asp_evt p (asp_paramsC aid args) e')
-  | csa_asp_split : forall p aid args e' l r fwd attrs,
-      normalize_ev G e' = split_evt l r ->
-      (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) ->
-      fwd <> UNWRAP ->
-      asp_supported G aid ->
-      ContextSupportsAppr G l ->
-      ContextSupportsAppr G r ->
-      ContextSupportsAppr G (asp_evt p (asp_paramsC aid args) e')
-  | csa_asp_asp_unwrap_wrap : 
-      forall p p' aid aid' args args' n attrs attrs' e' e'',
-      normalize_ev G e' = asp_evt p' (asp_paramsC aid' args') e'' ->
-      (asp_types G) ![ aid  ] = Some (ev_arrow UNWRAP attrs) ->
-      (asp_types G) ![ aid' ] = Some (ev_arrow (WRAP n) attrs') ->
-      (asp_comps G) ![ aid' ] = Some aid ->
-      ContextSupportsAppr G e'' ->
-      ContextSupportsAppr G (asp_evt p (asp_paramsC aid args) e')
-  | csa_asp_asp : forall p p' aid aid' args args' e' e'' fwd attrs fwd' attrs',
-      normalize_ev G e' = asp_evt p' (asp_paramsC aid' args') e'' ->
-      (asp_types G) ![ aid  ] = Some (ev_arrow fwd attrs) ->
-      (asp_types G) ![ aid' ] = Some (ev_arrow fwd' attrs') ->
-      fwd <> UNWRAP ->
-      asp_supported G aid ->
+  | csa_nonce : forall e n attrs nlt,
+      normalize_ev G e = nonce_evt n ->
+      (asp_types G) ![ check_nonce_aspid ] = Some (ev_arrow (REPLACE (exist _ 1 nlt)) attrs) ->
+      ContextSupportsAppr G e
+  | csa_appr_asp_unwrap_wrap : forall e p' aid args e' appr_id attrs attrs' nv,
+      normalize_ev G e = asp_evt p' (asp_paramsC aid args) e' ->
+      (asp_types G) ![ appr_id ] = Some (ev_arrow UNWRAP attrs) ->
+      (asp_comps G) ![ aid ] = Some appr_id ->
+      (asp_types G) ![ aid ] = Some (ev_arrow (WRAP nv) attrs') ->
       ContextSupportsAppr G e' ->
-      ContextSupportsAppr G (asp_evt p (asp_paramsC aid args) e').
+      ContextSupportsAppr G e
+  | csa_appr_asp_replace : forall e p' aid args e' appr_id fwd attrs attrs' n nlt,
+      normalize_ev G e = asp_evt p' (asp_paramsC aid args) e' ->
+      (asp_types G) ![ appr_id ] = Some (ev_arrow fwd attrs) ->
+      (asp_comps G) ![ aid ] = Some appr_id ->
+      (asp_types G) ![ aid ] = Some (ev_arrow (REPLACE (exist _ n nlt)) attrs') ->
+      fwd <> UNWRAP ->
+      ContextSupportsAppr G e' ->
+      ContextSupportsAppr G e
+  | csa_appr_asp_extend : forall e p' aid args e' appr_id fwd attrs attrs' n nlt isig,
+      normalize_ev G e = asp_evt p' (asp_paramsC aid args) e' ->
+      (asp_types G) ![ appr_id ] = Some (ev_arrow fwd attrs) ->
+      (asp_comps G) ![ aid ] = Some appr_id ->
+      (asp_types G) ![ aid ] = Some (ev_arrow (EXTEND (exist _ n nlt) isig) attrs') ->
+      fwd <> UNWRAP ->
+      ContextSupportsAppr G e' ->
+      ContextSupportsAppr G e
+  | csa_appr_split : forall e el er,
+      normalize_ev G e = split_evt el er ->
+      ContextSupportsAppr G el ->
+      ContextSupportsAppr G er ->
+      ContextSupportsAppr G e.
 Local Hint Constructors ContextSupportsAppr : csa.
 
 Lemma CSA_asp_must_type_outer : forall G e a aid args,
@@ -1833,8 +1608,6 @@ Proof.
   ).
 Qed.
 
-(* 1. CSA Soundness: If CSA e, then CSA (norm e).
-   This direction is usually easy because norm(e) is a "cleaner" version of e. *)
 Lemma CSA_norm_sound : forall G e,
   ContextSupportsAppr G e ->
   ContextSupportsAppr G (normalize_ev G e).
@@ -1843,24 +1616,13 @@ Proof.
   induction H; try (normer; fail).
   - eapply csa_mt; normer.
   - normer; eapply csa_nonce; normer.
-  
-  - normer; eapply csa_split > [ normer | | ]; ff.
-
-  - (* csa_asp_mt *)
-    normer.
-    eapply csa_asp_mt; normer.
-  - (* csa_asp_nonce *)
-    normer.
-    eapply csa_asp_nonce; normer.
-  - (* csa_asp_split *)
-    normer.
-    eapply csa_asp_split > [ normer | | | | | ]; ff.
-  - normer;
-    try (
-      find_eapply_lem_hyp normalize_ev_done;
-      eapply csa_asp_asp > [ normer | | | | | ]; ff;
-      fail
-    ).
+  - normer; eapply csa_appr_asp_unwrap_wrap; normer.
+  - normer; eapply csa_appr_asp_replace 
+    > [ find_eapply_lem_hyp normalize_ev_done; ff | eapply e1 | | | | ]; ff.
+  - normer; eapply csa_appr_asp_extend
+    > [ find_eapply_lem_hyp normalize_ev_done; ff | eapply e1 | | | | ]; ff.
+  - normer; eapply csa_appr_split
+    > [ norm; ff | | ]; ff.
 Qed.
 
 Lemma CSA_norm_complete : forall G e,
@@ -1868,41 +1630,15 @@ Lemma CSA_norm_complete : forall G e,
   ContextSupportsAppr G e.
 Proof.
   intros G e H.
-  induction e using (normalize_ev_rect_custom G); eauto with csa.
-  - normer; eapply csa_left; normer.
-  - normer; find_eapply_lem_hyp normalize_ev_done; invc H; normer.
-
-  - normer; eapply csa_right; normer.
-  - normer; find_eapply_lem_hyp normalize_ev_done; invc H; normer.
-  - normer.
-    invc H; normer.
-    erewrite normalize_ev_idempotent in *.
-    (* ff with a. *)
-    eapply csa_split > [ normer | | ]; ff.
-  - normer.
-    eapply csa_asp_asp_unwrap_wrap; normer.
-  - normer;
-    eapply normalize_ev_done in Heq as ?; invc H; try (normer; fail);
-    ff with a; eauto with csa.
-  - 
-    normer.
-    * invc H; normer; eapply csa_asp_mt; normer.
-    * invc H; normer; eapply csa_asp_nonce; normer.
-    * find_eapply_lem_hyp normalize_ev_done; invc H; normer.
-    * find_eapply_lem_hyp normalize_ev_done; invc H; normer.
-    * invc H; normer.
-      eapply normalize_ev_done in Heq as ?.
-      normer.
-      eapply csa_asp_split; ff.
+  prep_induction H.
+  induction H; normer; erewrite (normalize_ev_idempotent G) in *.
+  - normer; eapply csa_mt; normer.
+  - normer; eapply csa_nonce; normer.
+  - normer; eapply csa_appr_asp_unwrap_wrap; normer.
+  - normer; eapply csa_appr_asp_replace > [ ff | eapply e1 | | | | ]; ff.
+  - normer; eapply csa_appr_asp_extend > [ ff | eapply e1 | | | | ]; ff.
+  - normer; eapply csa_appr_split > [ normer | | ]; ff.
 Qed.
-
-(* 
-Lemma CSA_norm_exact : forall G e,
-  ContextSupportsAppr G e <-> ContextSupportsAppr G (normalize_ev G e).
-Proof.
-  split > [ eapply CSA_norm_sound | eapply CSA_norm_complete ].
-Qed.
-*)
 
 (* --- The Main Theorem --- *)
 Theorem CSA_canon_invariant : forall G e1 e2,
@@ -1945,13 +1681,7 @@ Proof.
       norm; ff.
     + right.
       intros HC.
-      invc HC; norm; ff.
-      * eauto with csa.
-      * eapply Hsumor_r.  
-        eapply csa_nonce; normer.
-      * eapply Hsumor_r.
-        eapply csa_split > [ norm | | ]; ff;
-        eapply CSA_norm_sound; ff.
+      eapply CSA_norm_sound in HC; normer.
   - ff; try (right; intros HC; invc HC; norm; ff; fail).
   - 
     ff.
@@ -1960,13 +1690,7 @@ Proof.
       norm; ff.
     + right.
       intros HC.
-      invc HC; norm; ff.
-      * eauto with csa.
-      * eapply Hsumor_r.  
-        eapply csa_nonce; normer.
-      * eapply Hsumor_r.
-        eapply csa_split > [ norm | | ]; ff;
-        eapply CSA_norm_sound; ff.
+      eapply CSA_norm_sound in HC; normer.
   - ff; try (right; intros HC; invc HC; norm; ff; fail).
   - destruct IHe1, IHe2;
     try (
@@ -1975,7 +1699,7 @@ Proof.
       fail
     ).
     left.
-    eapply csa_split > [ norm | | ]; ff;
+    eapply csa_appr_split > [ norm | | ]; ff;
     eapply CSA_norm_sound; ff.
   - ff.
     + left.
@@ -1983,195 +1707,122 @@ Proof.
       norm; ff.
     + right.
       intros HC.      
-      invc HC; norm; ff.
-      * eauto with csa.
-      * eapply Hsumor_r.  
-        eapply csa_nonce; normer.
-      * eapply Hsumor_r.
-        eapply csa_split > [ norm | | ]; ff;
-        eapply CSA_norm_sound; ff.
-  -
-    destruct (asp_supported_dec G aid), IHe1; ff;
-    try (right; intros HC; invc HC; normer; ff with (eauto with csa); fail);
-    Control.enter (fun () => 
-    left; pp c; eapply CSA_norm_sound in c; find_rewrite;
-    eapply CSA_asp_must_type_outer in c;
-    destruct c as [ [ fwd attrs ] Hex ];
-    try (eapply csa_asp_asp; ff; fail)).
+      eapply CSA_norm_sound in HC; normer.
   - destruct (asp_supported_dec G aid), IHe1; ff;
-    try (right; intros HC; invc HC; normer; ff with (eauto with csa); fail).
-    * 
-      destruct (normalize_ev G e1) eqn:?; 
-      try (destruct a0); normer;
-      destruct ((asp_types G) ![ aid ]) as [[fwd attrs]|] eqn:Hasp; normer; 
-      try (right; intros HC; invc HC; normer; ff with (eauto with csa); fail);
-      destruct fwd; normer;
-      try (right; intros HC; invc HC; normer; ff with (eauto with csa); fail);
-      try (left; eapply csa_asp_mt; normer; fail);
-      try (left; invc c; normer; eapply csa_asp_nonce; normer; fail);
-      try (left; invc c; normer;
-        eapply csa_asp_split; norm; ff; eapply CSA_norm_complete; ff; fail).
-    
-    * right.
-      intros HC.
-      invc HC; normer; ff with (eauto with csa).
-      + eapply f; eapply csa_nonce; normer.
-      + eapply f; eapply csa_split > [ norm | | ]; ff;
-        eapply CSA_norm_sound; ff.
+    try (right; intros HC; invc HC; normer; 
+      try (eapply f; eapply CSA_norm_complete; ff; fail);
+      eapply n; unfold asp_supported; ff; fail).
+    + unfold asp_supported in *; ff; left; ddeps;
+      eapply csa_appr_asp_replace > [ | eapply Heq2 | ff | ff | ff |
+        eapply CSA_norm_sound; eapply c ]; normer.
+    + unfold asp_supported in *; ff; left; ddeps;
+      eapply csa_appr_asp_unwrap_wrap > [ | eapply Heq2 | ff | ff |
+        eapply CSA_norm_sound; eapply c ]; normer.
+    + unfold asp_supported in *; ff; left; ddeps;
+      eapply csa_appr_asp_extend > [ | eapply Heq2 | ff | ff | ff |
+        eapply CSA_norm_sound; eapply c ]; normer.
+  - destruct (asp_supported_dec G aid), IHe1; ff;
+    try (right; intros HC; invc HC; normer; 
+      try (eapply f; eapply CSA_norm_complete; ff; fail);
+      eapply n; unfold asp_supported; ff; fail).
+    unfold asp_supported in *; ff; try (left; ddeps;
+    try (eapply csa_appr_asp_replace > [ | eapply Heq1 | ff | ff | ff |
+        eapply c ]; normer; fail);
+    try (eapply csa_appr_asp_extend > [ | eapply Heq1 | ff | ff | ff |
+        eapply c ]; normer; fail); 
+    try (eapply csa_appr_asp_unwrap_wrap > [ | eapply Heq1 | ff | ff |
+        eapply c ]; normer; fail); fail);
+    try (right; intros HC; invc HC; normer; fail).
 Qed.
 
-(*
+(* Helper Lemma for Soundness to abstract the target term from the derivation structure *)
+Lemma CSA_appraisal_sound_generalized : forall G e_csa,
+  ContextSupportsAppr G e_csa ->
+  forall e_orig p_tgt, normalize_ev G e_orig = normalize_ev G e_csa ->
+  { e'' & typeof G p_tgt e_orig (asp APPR) e'' }.
+Proof.
+  intros G e_csa Hcsa.
+  induction Hcsa; intros e_orig p_tgt Hnorm.
+  - (* csa_mt *)
+    exists e_orig. eapply tc_appr_mt; eauto.
+    normer; ff.
+  - (* csa_nonce *)
+    exists (asp_evt p_tgt check_nonce_params e_orig). 
+    eapply tc_appr_nonce; eauto.
+    normer; ff.
+  - (* csa_appr_asp_unwrap_wrap *)
+    (* We construct the derivation for the unwrapped evidence to satisfy the typeof rule premise *)
+    assert (HnormE : normalize_ev G (asp_evt p_tgt (asp_paramsC appr_id args) e_orig) = normalize_ev G e'). 
+    {
+      eapply normalize_ev_done in e0 as ?.
+      normer.
+    }
+    destruct (IHHcsa (asp_evt p_tgt (asp_paramsC appr_id args) e_orig) p_tgt HnormE) as [e'' Htype].
+    exists e''. eapply tc_appr_asp_unwrap_wrap; eauto.
+    normer; ff.
+  - (* csa_appr_asp_replace *)
+    assert (HnormE : normalize_ev G e' = normalize_ev G e') by reflexivity.
+    destruct (IHHcsa e' p_tgt HnormE) as [e'' Htype].
+    exists (asp_evt p_tgt (asp_paramsC appr_id args) e_orig).
+    eapply tc_appr_asp_replace; eauto.
+    normer; ff.
+  - (* csa_appr_asp_extend *)
+    assert (HnormE : normalize_ev G e' = normalize_ev G e') by reflexivity.
+    destruct (IHHcsa e' p_tgt HnormE) as [e'' Htype].
+    exists (split_evt (asp_evt p_tgt (asp_paramsC appr_id args) e_orig) e'').
+    eapply tc_appr_asp_extend; eauto.
+    normer; ff.
+  - (* csa_appr_split *)
+    assert (HnormL : normalize_ev G (left_evt e_orig) = normalize_ev G el) by (eapply normalize_ev_done in e0 as ?; normer; ff).
+    assert (HnormR : normalize_ev G (right_evt e_orig) = normalize_ev G er) by (eapply normalize_ev_done in e0 as ?; normer; ff).
+    destruct (IHHcsa1 (left_evt e_orig) p_tgt HnormL) as [el' HtypeL].
+    destruct (IHHcsa2 (right_evt e_orig) p_tgt HnormR) as [er' HtypeR].
+    exists (split_evt el' er').
+    eapply tc_appr_split; eauto.
+    normer; ff.
+Qed.
+
 Lemma CSA_appraisal_sound : forall G e,
   ContextSupportsAppr G e ->
   forall p, { e'' & typeof G p e (asp APPR) e''}.
 Proof.
-  intros G e Hcsat.
-  induction Hcsat; ff with (eauto using typeof).
-  (* - eexists; eapply tc_appr_nonce; normer. *)
-  - destruct (IHHcsat p) as [e'' Htyp].
-    eapply (appr_canon_invariant G p _ _ _ _ Htyp).
-    Unshelve.
-    normer; find_eapply_lem_hyp normalize_ev_done; normer.
-
-  - destruct (IHHcsat p) as [e'' Htyp].
-    eapply (appr_canon_invariant G p _ _ _ _ Htyp).
-    Unshelve.
-    normer; find_eapply_lem_hyp normalize_ev_done; normer.
-
-  - destruct (IHHcsat1 p) as [e1'' Htyp1]; 
-    find_eapply_lem_hyp tc_left_split; ff;
-    destruct (IHHcsat2 p) as [e2'' Htyp2]; 
-    find_eapply_lem_hyp tc_right_split; ff.
-    assert (normalize_ev G (left_evt (split_evt l r)) = normalize_ev G (left_evt e)). {
-      ff.
-      norm.
-      ff.
-      eapply normalize_ev_done in e0.
-      normer.
-    }
-    destruct Htyp1 as [e1_norm Htyp1_norm].
-    pp (appr_canon_invariant G p _ _ _ H Htyp1_norm).
-    assert (normalize_ev G (right_evt (split_evt l r)) = normalize_ev G (right_evt e)). {
-      ff.
-      norm.
-      ff.
-      eapply normalize_ev_done in Heq.
-      normer.
-    }
-    destruct Htyp2 as [e2_norm Htyp2_norm].
-    pp (appr_canon_invariant G p _ _ _ H0 Htyp2_norm).
-    ff.
-    destruct X, X0.
-    eexists; eapply tc_appr_split; ff.
-  - 
-    unfold asp_supported in *; ff; ddeps;
-    try (eexists; eapply tc_appr_asp_replace; normer; eauto using typeof; fail);
-    try (eexists; eapply tc_appr_asp_extend; normer; eauto using typeof; fail).
-
-    eexists; eapply tc_appr_asp_unwrap_wrap;
-    try (eapply tc_appr_mt; normer); normer.
-
-  - 
-    unfold asp_supported in *; ff; ddeps;
-    try (
-      eexists; eapply tc_appr_asp_replace > [ | normer | eapply Heq1 | ff | ff | ff ];
-      eapply tc_appr_nonce; normer; fail);
-    try (
-      eexists; eapply tc_appr_asp_extend > [ | normer | eapply Heq1 | ff | ff | ff ];
-      eapply tc_appr_nonce; normer; fail).
-
-    eexists; eapply tc_appr_asp_unwrap_wrap; normer; eauto using typeof.
-    eapply tc_appr_nonce; normer.
-
-  - 
-    edestruct (IHHcsat1 p0); find_eapply_lem_hyp tc_left_split; ff.
-    edestruct (IHHcsat2 p0); find_eapply_lem_hyp tc_right_split; ff.
-    unfold asp_supported in *; ff; ddeps;
-    try (
-      eexists; eapply tc_appr_asp_replace > [ | normer | | | | ]; ff;
-      eapply tc_appr_split; ff;
-      eapply normalize_ev_done; ff;
-      fail
-    );
-    try (
-      eexists; eapply tc_appr_asp_extend > [ | normer | | | | ]; ff;
-      eapply tc_appr_split; ff;
-      eapply normalize_ev_done; ff;
-      fail
-    ).
-
-    eapply typeof_norm_proper in t as [ evtl Htyl Hntyl ].
-    eapply typeof_norm_proper in t0 as [ evtr Htyr Hntyr ].
-    * eexists; eapply tc_appr_asp_unwrap_wrap > [ | norm; ff | ff | ff | ff ].
-      eapply tc_appr_split > [ | exact Htyl | exact Htyr ]; normer.
-    * eapply normalize_ev_done in e as ?; normer.
-    * eapply normalize_ev_done in e as ?; normer.
-  - 
-    edestruct (IHHcsat p0); ff; clear IHHcsat.
-
-    assert (normalize_ev G e'' = normalize_ev G (asp_evt p (asp_paramsC aid args) e')) as Heq. {
-      normer.
-      eapply normalize_ev_done in e as ?.
-      normer.
-    }
-
-
-    eapply (appr_canon_invariant _ _ _ _ _ Heq) in t.
-    ff.
-  - edestruct IHHcsat as [e_inner_res Htyp_inner].
-
-    pose proof (normalize_ev_done G _ _ e) as Hnorm_fixed.
-    eapply appr_canon_invariant in Htyp_inner > [| rewrite e; rewrite Hnorm_fixed; reflexivity].
-    destruct Htyp_inner as [e_inner_norm_res Htyp_inner_norm].
-
-    destruct fwd.
-
-    * unfold asp_supported in *;
-      find_rewrite.
-      destruct ((asp_comps G) ![ aid ]) as [appr_id|] eqn:Hcomp > [| ff];
-      destruct ((asp_types G) ![ appr_id ]) as [[fwd_appr attrs_appr]|] eqn:Htype_appr > [| ff];
-      destruct fwd_appr; try (ff; fail); ddeps;
-      eexists;
-      try (eapply tc_appr_asp_replace >
-      [ exact Htyp_inner_norm | norm | | | | ]; ff; fail);
-      try (eapply tc_appr_asp_extend >
-      [ exact Htyp_inner_norm | norm | | | | ]; ff; fail).
-
-    (* CASE 1: fwd = WRAP n *)
-    * unfold asp_supported in *; find_rewrite.
-      destruct ((asp_comps G) ![ aid ]) as [appr_id|] eqn:Hcomp > [ | ff ].
-      destruct ((asp_types G) ![ appr_id ]) as [[fwd_appr attrs_appr]|] eqn:Htype_appr
-      > [| ff].
-      destruct fwd_appr; try (ff; fail).
-      (* The appraiser is UNWRAP, so we use the unwrap_wrap rule *)
-      eexists.
-      eapply tc_appr_asp_unwrap_wrap.
-      + exact Htyp_inner_norm.
-      + norm; ff.
-      + exact Htype_appr. 
-      + exact Hcomp.
-      + ff.
-
-    * ff.
-
-    * unfold asp_supported in *; find_rewrite.
-      destruct ((asp_comps G) ![ aid ]) as [appr_id|] eqn:Hcomp > [| ff];
-      destruct ((asp_types G) ![ appr_id ]) as [[fwd_appr attrs_appr]|] eqn:Htype_appr > [| ff];
-      destruct fwd_appr; try (ff; fail); ddeps;
-      eexists;
-      try (
-      eapply tc_appr_asp_extend >
-      [ exact Htyp_inner_norm
-      | norm; ff
-      | exact Htype_appr
-      | exact Hcomp
-      | ff
-      | ff
-      ]; fail).
-  Unshelve.
-  all: try (eapply (exist _ 1 (Nat.lt_0_1))).
+  intros G e Hcsa p.
+  eapply CSA_appraisal_sound_generalized; ff.
 Qed.
-*)
+
+Theorem CSA_appraisal_complete : forall G p e e',
+  typeof G p e (asp APPR) e' ->
+  ContextSupportsAppr G e.
+Proof.
+  intros G p e e' Htype.
+  remember (asp APPR) as t.
+  induction Htype; try (inversion Heqt; fail).
+  - (* tc_appr_mt *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_mt; eauto.
+  - (* tc_appr_nonce *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_nonce; eauto.
+  - (* tc_appr_asp_unwrap_wrap *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_appr_asp_unwrap_wrap; eauto.
+    assert (H_inner : ContextSupportsAppr G (asp_evt p (asp_paramsC appr_id args) e)) by (eapply IHHtype; eauto).
+    eapply CSA_norm_sound in H_inner. 
+    normer; ff.
+  - (* tc_appr_asp_replace *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_appr_asp_replace > [ | eapply e1 | ff | ff | ff | ]; eauto.
+  - (* tc_appr_asp_extend *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_appr_asp_extend > [ | eapply e1 | ff | ff | ff | ]; eauto.
+  - (* tc_appr_split *)
+    inversion Heqt; subst; clear Heqt.
+    eapply csa_appr_split; eauto.
+    + assert (H_left : ContextSupportsAppr G (left_evt e)) by (eapply IHHtype1; eauto).
+      eapply CSA_norm_sound in H_left. normer; ff.
+    + assert (H_right : ContextSupportsAppr G (right_evt e)) by (eapply IHHtype2; eauto).
+      eapply CSA_norm_sound in H_right. normer; ff.
+Qed.
 
 (** Provenance Preserving *)
 (* 
@@ -2473,7 +2124,6 @@ Proof.
   - invc H; ff with a; eauto using provenance.
 Qed.
 
-(* 
 (* Major Theorem: Appraisability *)
 Theorem well_typed_appraisable : forall G e p,
   ContextSupportsAppr G e ->
@@ -2483,7 +2133,6 @@ Proof.
   eapply CSA_appraisal_sound.
   ff.
 Qed.
-*)
 
 (* This justifies that the type system enforces the non-commutativity of evidence *)
 Theorem evidence_non_commutative : forall p,
@@ -2528,171 +2177,6 @@ Proof.
   - subst e1' e2'.
     ff.
 Qed.
-
-(*
-Theorem CSA_appraisal_complete : forall G p e e',
-  typeof G p e (asp APPR) e' ->
-  ContextSupportsAppr G e.
-Proof.
-  intros G p e e' Htyp.
-  remember (asp APPR) as t.
-  induction Htyp; try (discriminate Heqt).
-
-  -- eapply csa_mt. assumption.
-  -- eapply csa_nonce; eassumption.
-  -- apply CSA_norm_complete.
-
-    rewrite e0.
-
-    (* 3. We must inspect the inner evidence e' to pick the right CSA rule.
-          Note: 'e' is the outer WRAP evidence. 'e'' is what is inside it. *)
-    destruct (normalize_ev G e') eqn:Heq_norm_inner.
-
-    (* Case A: Inner is MT. Use csa_asp_mt *)
-    - eapply csa_asp_mt.
-      + exact Heq_norm_inner.
-      + (* Show asp_supported for the outer WRAP *)
-        unfold asp_supported. ff.
-      + (* Show outer is NOT UNWRAP *)
-        destruct nv; discriminate. (* WRAP <> UNWRAP *)
-      + unfold asp_supported; ff.
-
-    (* Case B: Inner is Nonce. Use csa_asp_nonce *)
-    - 
-      eapply CSA_norm_sound in IHHtyp. rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer.
-      eapply csa_asp_nonce.
-      + exact Heq_norm_inner.
-      + (* Outer is NOT UNWRAP *)
-        ff.
-      + ff.
-      + (* asp_supported *)
-        unfold asp_supported; ff.
-      + (* Validity of checking nonce *)
-        (* We need to extract the check_nonce property from CSA e' *)
-        ff.
-      + ff.
-
-    (* Case D: Inner is ASP. Use csa_asp_asp *)
-    - destruct a.
-      eapply CSA_norm_sound in IHHtyp. rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer;
-      eapply csa_asp_asp > [ exact Heq_norm_inner | ff | ff | ff | unfold asp_supported; ff | eapply CSA_norm_complete ; ff ]; ff.
-      ff.
-    - invc Htyp; normer.
-    - invc Htyp; normer.
-
-    (* Case C: Inner is Split. Use csa_asp_split *)
-    - 
-      pp (IHHtyp eq_refl).
-      eapply CSA_norm_sound in X.
-      ff.
-      invc X; normer.
-      eapply csa_asp_split > [ exact Heq_norm_inner | ff | ff | unfold asp_supported; ff | | ];
-      eapply CSA_norm_complete; ff.
-
-  -- 
-    eapply CSA_norm_complete.
-
-    rewrite e0.
-
-    (* 3. We must inspect the inner evidence e' to pick the right CSA rule.
-          Note: 'e' is the outer WRAP evidence. 'e'' is what is inside it. *)
-    destruct (normalize_ev G e') eqn:Heq_norm_inner.
-
-    (* Case A: Inner is MT. Use csa_asp_mt *)
-    - eapply csa_asp_mt; ff.
-      unfold asp_supported; ff.
-
-    (* Case B: Inner is Nonce. Use csa_asp_nonce *)
-    - 
-      eapply CSA_norm_sound in IHHtyp.
-      rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer.
-      eapply csa_asp_nonce.
-      + exact Heq_norm_inner.
-      + (* Outer is NOT UNWRAP *)
-        ff.
-      + ff.
-      + (* asp_supported *)
-        unfold asp_supported; ff.
-      + (* Validity of checking nonce *)
-        (* We need to extract the check_nonce property from CSA e' *)
-        ff.
-      + ff.
-
-    (* Case D: Inner is ASP. Use csa_asp_asp *)
-    - destruct a.
-      eapply CSA_norm_sound in IHHtyp. rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer;
-      eapply csa_asp_asp > [ exact Heq_norm_inner | ff | ff | ff | unfold asp_supported; ff with (congruence) | eapply CSA_norm_complete; ff ].
-      ff.
-    - invc Htyp; normer.
-    - invc Htyp; normer.
-
-    (* Case C: Inner is Split. Use csa_asp_split *)
-    - 
-      pp (IHHtyp eq_refl).
-      eapply CSA_norm_sound in X.
-      ff.
-      invc X; normer.
-      eapply csa_asp_split > [ exact Heq_norm_inner | ff | ff | unfold asp_supported; ff | | ];
-      eapply CSA_norm_complete; ff.
-  -- 
-    eapply CSA_norm_complete.
-
-    rewrite e0.
-
-    (* 3. We must inspect the inner evidence e' to pick the right CSA rule.
-          Note: 'e' is the outer WRAP evidence. 'e'' is what is inside it. *)
-    destruct (normalize_ev G e') eqn:Heq_norm_inner.
-
-    (* Case A: Inner is MT. Use csa_asp_mt *)
-    - eapply csa_asp_mt; ff.
-      unfold asp_supported; ff.
-
-    (* Case B: Inner is Nonce. Use csa_asp_nonce *)
-    - 
-      eapply CSA_norm_sound in IHHtyp.
-      rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer.
-      eapply csa_asp_nonce.
-      + exact Heq_norm_inner.
-      + (* Outer is NOT UNWRAP *)
-        ff.
-      + ff.
-      + (* asp_supported *)
-        unfold asp_supported; ff.
-      + (* Validity of checking nonce *)
-        (* We need to extract the check_nonce property from CSA e' *)
-        ff.
-      + ff.
-
-    (* Case D: Inner is ASP. Use csa_asp_asp *)
-    - destruct a.
-      eapply CSA_norm_sound in IHHtyp. rewrite Heq_norm_inner in IHHtyp.
-      inversion (IHHtyp); normer;
-      eapply csa_asp_asp > [ exact Heq_norm_inner | ff | ff | ff | unfold asp_supported; ff with (congruence) | eapply CSA_norm_complete; ff ].
-      ff.
-    - invc Htyp; normer.
-    - invc Htyp; normer.
-
-    (* Case C: Inner is Split. Use csa_asp_split *)
-    - 
-      pp (IHHtyp eq_refl).
-      eapply CSA_norm_sound in X.
-      ff.
-      invc X; normer.
-      eapply csa_asp_split > [ exact Heq_norm_inner | ff | ff | unfold asp_supported; ff | | ];
-      eapply CSA_norm_complete; ff.
-  -- 
-      pp (CSA_norm_sound _ _ (IHHtyp1 eq_refl)).
-      pp (CSA_norm_sound _ _ (IHHtyp2 eq_refl)).
-      norm.
-      ff.
-      eapply csa_split > [ norm; ff | | ]; ff.
-Qed.
-*)
 
 Theorem typeof_appr_decidable : forall G p e,
   ({ e' & typeof G p e (asp APPR) e' }) + {forall e', typeof G p e (asp APPR) e' -> False}.
