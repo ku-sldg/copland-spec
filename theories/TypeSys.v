@@ -1843,7 +1843,7 @@ the resulting evidence type.
 
 It is essentially just a subterm relation, but we define it here
 *)
-Inductive str_provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Prop :=
+Inductive str_provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Type :=
   | str_prov_refl : forall e, str_provenance G e e
   | str_prov_left : forall e e',
       str_provenance G e e' ->
@@ -1875,7 +1875,7 @@ Theorem str_provenance_monotonic : forall G e e',
   EvidenceT_depth e <= EvidenceT_depth e'.
 Proof.
   intros.
-  induction H; ff with l.
+  induction X; ff with l.
 Qed.
 
 Lemma str_provenance_trans : forall G e1 e2 e3,
@@ -1884,8 +1884,8 @@ Lemma str_provenance_trans : forall G e1 e2 e3,
   str_provenance G e1 e3.
 Proof.
   intros.
-  prep_induction H0.
-  induction H0; ff; eauto using str_provenance.
+  prep_induction X0.
+  induction X0; ff; eauto using str_provenance.
 Qed.
 
 Theorem typecheck_preserves_str_provenance : forall G t p e e',
@@ -2991,3 +2991,72 @@ Proof.
       exists (el, er).
       repeat split; eauto.
 Qed.
+
+(* Extract the finite bounded search space of all possible source evidences for typechecking *)
+Fixpoint all_prov_sources (e_out : EvidenceT) : list EvidenceT :=
+  match e_out with
+  | mt_evt => [e_out]
+  | nonce_evt _ => [e_out]
+  | left_evt e' => e_out :: all_prov_sources e' 
+  | right_evt e' => e_out :: all_prov_sources e' 
+  | split_evt el er => e_out :: all_prov_sources el ++ all_prov_sources er
+  | asp_evt p args e' => e_out :: all_prov_sources e' 
+  end.
+
+(* Show that this list sufficiently captures all of the strong provenance cases *)
+Lemma in_all_prov_sources : forall G e e',
+  str_provenance G e e' -> In e (all_prov_sources e').
+Proof.
+  intros G e e' H. 
+  induction H; ff.
+  - destruct e; ff.
+  - erewrite in_app_iff; ff.
+  - erewrite in_app_iff; ff.
+Qed.
+
+(* We made the problem into a finite search problem, and it can be then decided *)
+Fixpoint check_cands (G: GlobalContext) (p: Plc) (e_out: EvidenceT) (cands: list EvidenceT)
+  : { e' & typeof G p e' (asp APPR) e_out } + { forall e', In e' cands -> typeof G p e' (asp APPR) e_out -> False }.
+Proof.
+  destruct cands as [| e_cand cands_rest].
+  - (* Empty candidate list *)
+    right. intros e' H_in H_typ. inversion H_in.
+  - (* Check current candidate or recurse *)
+    destruct (check_cands G p e_out cands_rest) as [H_found | H_notfound].
+    + left. exact H_found.
+    + destruct (typeof_appr_decidable G p e_cand) as [[e_res H_typ_cand] | H_no_typ].
+      * destruct (dec_eq e_res e_out) as [H_eq | H_neq].
+        -- (* Candidate typechecks exactly to e_out *)
+          left.
+          rewrite <- H_eq in *.
+          exists e_cand.
+          exact H_typ_cand.
+        -- (* Candidate typechecks to something else; rejected via determinism *)
+            right. intros e' H_in H_typ. destruct H_in as [H_eq_cand | H_in_rest].
+            ++ subst e'.
+              pose proof (typeof_deterministic G (asp APPR) p e_cand e_out e_res H_typ H_typ_cand) as Heq.
+              symmetry in Heq. 
+              clear check_cands.
+              congruence.
+            ++ apply H_notfound with (e' := e'); assumption.
+      * (* Candidate fails to typecheck entirely *)
+        right. intros e' H_in H_typ. destruct H_in as [H_eq_cand | H_in_rest].
+        -- subst e'. exact (H_no_typ _ H_typ).
+        -- apply H_notfound with (e' := e'); assumption.
+Defined.
+
+(* This demonstrates that we can decidable show if something is a valid appraisal *)
+Theorem typeof_appr_invertible : forall G p e_out,
+  { e' & typeof G p e' (asp APPR) e_out } + 
+  { forall e', typeof G p e' (asp APPR) e_out -> False }.
+Proof.
+  intros G p e_out.
+  destruct (check_cands G p e_out (all_prov_sources e_out)) as [H_found | H_notfound].
+  - left. exact H_found.
+  - right. intros e' H_typ.
+    apply H_notfound with (e' := e').
+    + apply in_all_prov_sources with (G := G).
+      eapply typecheck_preserves_str_provenance with (t := asp APPR) (p := p) (e' := e_out).
+      exact H_typ.
+    + exact H_typ.
+Defined.

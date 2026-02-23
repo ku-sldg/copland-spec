@@ -83,19 +83,19 @@ Definition appr_summary_correct (G : GlobalContext) (r : RawEv) (s : AppraisalSu
   Permutation r (flatten_appraisal_summary s) /\
   all_keys_provenance G s.
 
-Equations? do_appraisal_summary (G : GlobalContext) (r : RawEv) 
+Equations? do_appraisal_summary_core (G : GlobalContext) (r : RawEv) 
     (p : Plc) (et:EvidenceT)
     ( Hty : { et' & typeof G p et' (asp APPR) et })
     ( Hsize : evt_stack_denotation G et (length r) )
     : { s : AppraisalSummary | appr_summary_correct G r s } 
       by wf (EvidenceT_depth (normalize_ev G (projT1 Hty))) :=
-  do_appraisal_summary G r p mt_evt Hty Hsize := 
+  do_appraisal_summary_core G r p mt_evt Hty Hsize := 
     exist (appr_summary_correct G r) [] _;
-  do_appraisal_summary G r p (nonce_evt nid) Hty Hsize := _;
-  do_appraisal_summary G r p (asp_evt p' asp_params et') Hty Hsize := _;
-  do_appraisal_summary G r p (left_evt et') Hty Hsize := _;
-  do_appraisal_summary G r p (right_evt et') Hty Hsize := _;
-  do_appraisal_summary G r p (split_evt et1 et2) Hty Hsize := _.
+  do_appraisal_summary_core G r p (nonce_evt nid) Hty Hsize := _;
+  do_appraisal_summary_core G r p (asp_evt p' asp_params et') Hty Hsize := _;
+  do_appraisal_summary_core G r p (left_evt et') Hty Hsize := _;
+  do_appraisal_summary_core G r p (right_evt et') Hty Hsize := _;
+  do_appraisal_summary_core G r p (split_evt et1 et2) Hty Hsize := _.
 Proof.
   all: subst; unfold appr_summary_correct.
   - invc Hsize.
@@ -122,7 +122,7 @@ Proof.
       eapply evt_stack_denotation_transfer in Hsize as ? > [
         | eapply Hnev
       ].
-      eapply (do_appraisal_summary G r p evv (existT _ e' Htyev) X2).
+      eapply (do_appraisal_summary_core G r p evv (existT _ e' Htyev) X2).
       ff with l.
       assert (normalize_ev G e' = e'). {
         eapply normalize_ev_done in H as ?; normer.
@@ -173,7 +173,7 @@ Proof.
       assert (s2 = Datatypes.length l2) by (ff with l); ff.
 
       assert ({ s : AppraisalSummary | appr_summary_correct G l2 s }). {
-        eapply (do_appraisal_summary G l2 p et2 (existT _ e' Htyv) X1).
+        eapply (do_appraisal_summary_core G l2 p et2 (existT _ e' Htyv) X1).
         ff with l.
         eapply appr_unwrap_chain_measure_decreases in Hchain.
         eapply normalize_ev_measure_decrease in Hn as ?. 
@@ -196,9 +196,9 @@ Proof.
     rewrite length_app in *.
     assert (s2 = Datatypes.length l2) by (ff with l); ff.
     eapply normalize_ev_measure_decrease in Hn as ?; ff with l.
-    destruct (do_appraisal_summary G _ p et1 (existT _ (left_evt e_inner) Htyl) X0) as [S1 [Hperm1 Hsum1]].
+    destruct (do_appraisal_summary_core G _ p et1 (existT _ (left_evt e_inner) Htyl) X0) as [S1 [Hperm1 Hsum1]].
     ff with l; norm; ff with l.
-    destruct (do_appraisal_summary G _ p et2 (existT _ (right_evt e_inner) Htyr) X1) as [S2 [Hperm2 Hsum2]].
+    destruct (do_appraisal_summary_core G _ p et2 (existT _ (right_evt e_inner) Htyr) X1) as [S2 [Hperm2 Hsum2]].
     ff with l; norm; ff with l.
     exists (S1 ++ S2).
     split.
@@ -209,3 +209,26 @@ Proof.
     + erewrite all_keys_provenance_app.
       ff.
 Defined.
+
+Definition do_appraisal_summary (G : GlobalContext) (r : RawEv) (p : Plc) (et:EvidenceT)
+    : { s : AppraisalSummary | appr_summary_correct G r s }
+      (* if it fails, some evidence of failure *)
+      + { forall e', typeof G p e' (asp APPR) et -> False }
+      + { evt_stack_denotation G et (length r) -> False } :=
+  match (typeof_appr_invertible G p et) with
+  | inleft HtyGood =>
+    match (evt_stack_denotation_size G et) with
+    | inleft (existT _ n HevtGood) => 
+      match (dec_eq n (length r)) with
+      | left Hd => 
+          eq_rect_r (fun n0 =>
+              evt_stack_denotation G et n0 -> _ + {evt_stack_denotation G et (Datatypes.length r) -> False})
+            (fun HevtGood0 : evt_stack_denotation G et (Datatypes.length r) =>
+              inleft (inleft (do_appraisal_summary_core G r p et HtyGood HevtGood0)))
+            Hd HevtGood
+      | right Hnd => inright (fun HC => Hnd (evt_stack_denotation_deterministic G _ _ _ HevtGood HC))
+      end
+    | inright HevtFail => inright (fun HC => (HevtFail _ HC))
+    end
+  | inright HtyFail => inleft (inright HtyFail)
+  end.
