@@ -165,7 +165,7 @@ Proof.
     destruct HS as [e_inner [Hchain [Hextend | Hsplit]]].
 
     * (* EXTEND: recurse *)
-      destruct Hextend as [[[[[[[[[[aid p'] args] e'] nv] isig] attrs'] appr_id] fwd] attrs] [[[[[[Hn Haty] Hcomp] Happty] Hfwd] Heveq] Htyv]].
+      destruct Hextend as [[[[[[[[[[aid p'] args] e'] nv] isig] attrs'] appr_id] fwd] attrs] Htyv [Hn [Haty [Hcomp [Happty [Hfwd Heveq]]]]]].
       destruct (peel_n_rawev s1 r) as [[l1 l2] |] eqn:Hpeel;
       try (  find_eapply_lem_hyp peel_n_rawev_none_spec; ff with l).
       eapply peel_n_rawev_result_spec in Hpeel; ff.
@@ -188,7 +188,7 @@ Proof.
       ff; try (normer; fail).
       unfold heads_match; normer.
     * 
-    destruct Hsplit as [[el er] [[Hn Htyl] Htyr]].
+    destruct Hsplit as [[el er] [Htyl Htyr] Hn].
     eapply appr_unwrap_chain_measure_decreases in Hchain as ?.
     destruct (peel_n_rawev s1 r) as [[l1 l2] |] eqn:Hpeel;
     try (  find_eapply_lem_hyp peel_n_rawev_none_spec; ff with l).

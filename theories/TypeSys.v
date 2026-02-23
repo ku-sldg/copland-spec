@@ -2936,22 +2936,30 @@ Lemma tc_split_eventually_resolves : forall G p e et1 et2,
     ((appr_unwrap_chain G p e e_inner) *
     (
       (* Case 1: The chain terminates via tc_appr_asp_extend *)
-      { '(aid, p', args, e', nv, isig, attrs', appr_id, fwd, attrs) &
-        (normalize_ev G e_inner = asp_evt p' (asp_paramsC aid args) e') *
-        ((asp_types G) ![ aid ] = Some (ev_arrow (EXTEND nv isig) attrs')) *
-        ((asp_comps G) ![ aid ] = Some appr_id) *
-        ((asp_types G) ![ appr_id ] = Some (ev_arrow fwd attrs)) * (fwd <> UNWRAP) *
-        (et1 = asp_evt p (asp_paramsC appr_id args) e_inner) *
-        (typeof G p e' (asp APPR) et2)
-      }
+      sigT_P (ASP_ID * Plc * ASP_ARGS * EvidenceT * pos_nat * EvIn * list Attr * ASP_ID * EvCombSig * list Attr) 
+        (fun '(aid, p', args, e', nv, isig, attrs', appr_id, fwd, attrs) =>
+          (typeof G p e' (asp APPR) et2)
+        )
+        (fun '(aid, p', args, e', nv, isig, attrs', appr_id, fwd, attrs) =>
+          (normalize_ev G e_inner = asp_evt p' (asp_paramsC aid args) e') /\
+          ((asp_types G) ![ aid ] = Some (ev_arrow (EXTEND nv isig) attrs')) /\
+          ((asp_comps G) ![ aid ] = Some appr_id) /\
+          ((asp_types G) ![ appr_id ] = Some (ev_arrow fwd attrs)) /\ 
+          (fwd <> UNWRAP) /\
+          (et1 = asp_evt p (asp_paramsC appr_id args) e_inner)
+        )
       +
       (* Case 2: The chain terminates via tc_appr_split *)
-      { '(el, er) & 
-        (normalize_ev G e_inner = split_evt el er) *
-        (typeof G p (left_evt e_inner) (asp APPR) et1) *
-        (typeof G p (right_evt e_inner) (asp APPR) et2)
-      }
-    ))%type
+      sigT_P (EvidenceT * EvidenceT) 
+       (fun '(el, er) => 
+          (typeof G p (left_evt e_inner) (asp APPR) et1) *
+          (typeof G p (right_evt e_inner) (asp APPR) et2)
+       )
+       (fun '(el, er) => 
+          (normalize_ev G e_inner = split_evt el er)
+       )
+    )
+    )%type
   }.
 Proof.
   intros.
@@ -2964,11 +2972,8 @@ Proof.
     ff.
     edestruct (IHX2 _ _ eq_refl eq_refl) as [e_inner [Hchain Hcases]]; eauto.
     exists e_inner.
-    split.
-    + (* Prepend the current unwrap step to the chain *)
-      eapply auc_step; eauto.
-    + (* Pass the resolution cases up directly *)
-      exact Hcases.
+    split; ff.
+    eapply auc_step; eauto.
 
   (* Case: tc_appr_asp_extend (Base Creator 1) *)
   - (* No unwrapping occurred here, so e_inner is just e *)
@@ -2978,7 +2983,7 @@ Proof.
     + eapply auc_refl.
     + left.
       (* Pack the existentials matching the rule's premises *)
-      exists (aid, p', args, e', (exist _ n nlt), isig, attrs', appr_id, fwd, attrs).
+      exists (aid, p', args, e', (exist _ n nlt), isig, attrs', appr_id, fwd, attrs);
       repeat split; ff.
 
   (* Case: tc_appr_split (Base Creator 2) *)
@@ -2988,8 +2993,7 @@ Proof.
     split.
     + eapply auc_refl.
     + right.
-      exists (el, er).
-      repeat split; eauto.
+      exists (el, er); repeat split; eauto.
 Qed.
 
 (* Extract the finite bounded search space of all possible source evidences for typechecking *)
