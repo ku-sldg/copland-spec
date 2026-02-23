@@ -1736,7 +1736,7 @@ Proof.
 Qed.
 
 (* Helper Lemma for Soundness to abstract the target term from the derivation structure *)
-Lemma CSA_appraisal_sound_generalized : forall G e_csa,
+Lemma CSA_appraisal_complete_generalized : forall G e_csa,
   ContextSupportsAppr G e_csa ->
   forall e_orig p_tgt, normalize_ev G e_orig = normalize_ev G e_csa ->
   { e'' & typeof G p_tgt e_orig (asp APPR) e'' }.
@@ -1782,15 +1782,15 @@ Proof.
     normer; ff.
 Qed.
 
-Lemma CSA_appraisal_sound : forall G e,
+Lemma CSA_appraisal_complete : forall G e,
   ContextSupportsAppr G e ->
   forall p, { e'' & typeof G p e (asp APPR) e''}.
 Proof.
   intros G e Hcsa p.
-  eapply CSA_appraisal_sound_generalized; ff.
+  eapply CSA_appraisal_complete_generalized; ff.
 Qed.
 
-Theorem CSA_appraisal_complete : forall G p e e',
+Theorem CSA_appraisal_sound : forall G p e e',
   typeof G p e (asp APPR) e' ->
   ContextSupportsAppr G e.
 Proof.
@@ -2130,7 +2130,7 @@ Theorem well_typed_appraisable : forall G e p,
   { e'' & typeof G p e (asp APPR) e'' }.
 Proof.
   intros.
-  eapply CSA_appraisal_sound.
+  eapply CSA_appraisal_complete.
   ff.
 Qed.
 
