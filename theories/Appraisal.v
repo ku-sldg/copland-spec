@@ -115,14 +115,14 @@ Proof.
       exists ([((create_nonce_magic_aspid, check_nonce_aspid, check_nonce_aspargs), (et', r))]).
       ff; rewrite app_nil_r; ff.
     * 
-      eapply (typeof_norm_proper G _ _ e') in X0 as ? > [
+      eapply (typeof_norm_proper G _ _ e') in X1 as ? > [
         | eapply normalize_ev_done in H as ?; normer
       ].
-      destruct X1 as [ evv Htyev Hnev ].
+      destruct X2 as [ evv Htyev Hnev ].
       eapply evt_stack_denotation_transfer in Hsize as ? > [
         | eapply Hnev
       ].
-      eapply (do_appraisal_summary G r p evv (existT _ e' Htyev) X1).
+      eapply (do_appraisal_summary G r p evv (existT _ e' Htyev) X2).
       ff with l.
       assert (normalize_ev G e' = e'). {
         eapply normalize_ev_done in H as ?; normer.
