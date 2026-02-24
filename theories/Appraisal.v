@@ -4,7 +4,7 @@ From CoplandSpec Require Import Term_Defs_Core TypeSys
   Term_Defs_Core_Typeclasses Term_Defs.
 From Stdlib Require Import Permutation.
 
-Definition AppraisalSummary := (Map (ASP_ID * ASP_ID * ASP_ARGS) (EvidenceT * RawEv)).
+Definition AppraisalSummary := (Map ASP_ID (Map ASP_ID (EvidenceT * RawEv))).
 
 Fixpoint flatten {A B} `{DecEq A} (m : Map A B) : list B :=
   match m with
@@ -26,7 +26,9 @@ Proof.
 Qed.
 
 Definition flatten_appraisal_summary (s : AppraisalSummary) : RawEv :=
-  appify (map (fun '(k, (e, r)) => (k, r)) s).
+  appify (map (fun '(aid, rmap) =>
+    (aid, appify (map (fun '(appr_id, (e, r)) => (appr_id, r)) rmap))
+  ) s).
 
 Definition heads_match G (e : EvidenceT) (aid appr_id : ASP_ID) : Prop :=
   match normalize_ev G e with
@@ -40,18 +42,16 @@ Definition heads_match G (e : EvidenceT) (aid appr_id : ASP_ID) : Prop :=
 (* This is meant to represent a nonce's creation (outside of copland, thats why we need this special definition) *)
 Definition create_nonce_magic_aspid : ASP_ID := "nonce_creation"%string.
 
-Fixpoint all_keys_provenance (G : GlobalContext) (s : AppraisalSummary) : Prop :=
-  match s with
+Fixpoint all_key_prov_aux (G : GlobalContext) (aid : ASP_ID) (m : Map ASP_ID (EvidenceT * RawEv)) : Prop :=
+  match m with
   | [] => True
-  | (aid, appr_id, args, (e, r)) :: rest => 
-    (* special case, it may be that it is nonce_evt *)
+  | (appr_id, (e, r)) :: rest =>
     match normalize_ev G e with
     | nonce_evt nid =>
       (* if it's a nonce, then we just check that the args are correct and that the evidence is a nonce *)
       aid = create_nonce_magic_aspid /\
-      args = check_nonce_aspargs /\
       appr_id = check_nonce_aspid /\
-      all_keys_provenance G rest
+      all_key_prov_aux G aid rest
     | _ =>
       (* okay, all other cases it better be an asp case *)
       match ((asp_comps G) ![ aid ]) with
@@ -59,9 +59,15 @@ Fixpoint all_keys_provenance (G : GlobalContext) (s : AppraisalSummary) : Prop :
       | Some test_appr_id => 
         appr_id = test_appr_id /\
         heads_match G e aid appr_id /\
-        all_keys_provenance G rest
+        all_key_prov_aux G aid rest
       end
     end
+  end.
+
+Fixpoint all_keys_provenance (G : GlobalContext) (s : AppraisalSummary) : Prop :=
+  match s with
+  | [] => True
+  | (aid, rmap) :: rest => all_key_prov_aux G aid rmap /\ all_keys_provenance G rest
   end.
 
 Lemma all_keys_provenance_app : forall G s1 s2,
@@ -112,8 +118,8 @@ Proof.
       ff.
     * (* nonce *)
       invc Hsize; normer.
-      exists ([((create_nonce_magic_aspid, check_nonce_aspid, check_nonce_aspargs), (et', r))]).
-      ff; rewrite app_nil_r; ff.
+      exists ([(create_nonce_magic_aspid, [(check_nonce_aspid, (et', r))])]).
+      ff; repeat (rewrite app_nil_r); ff.
     * 
       eapply (typeof_norm_proper G _ _ e') in X1 as ? > [
         | eapply normalize_ev_done in H as ?; normer
@@ -133,20 +139,20 @@ Proof.
       destruct fwd; ff.
       + (* outer is REPLACE *)
         invc Hsize; normer.
-        exists ([((aid, appr_id, args), (asp_evt p' (asp_paramsC appr_id args) et', r))]).
-        split > [ ff; rewrite app_nil_r; ff | ].
+        exists ([(aid, [(appr_id, (asp_evt p' (asp_paramsC appr_id args) et', r))])]).
+        split > [ ff; repeat (rewrite app_nil_r); ff | ].
         ff; try (normer; fail).
         unfold heads_match; normer.
       + (* outer is WRAP - equivalent to REPLACE - weird but okay? *)
         invc Hsize; normer.
-        exists ([((aid, appr_id, args), (asp_evt p' (asp_paramsC appr_id args) et', r))]).
-        split > [ ff; rewrite app_nil_r; ff | ].
+        exists ([(aid, [(appr_id, (asp_evt p' (asp_paramsC appr_id args) et', r))])]).
+        split > [ ff; repeat (rewrite app_nil_r); ff | ].
         ff; try (normer; fail).
         unfold heads_match; normer.
       + (* outer is extend, inner is replace, but thats just the measurement!! *)
         inv Hsize; normer.
-        exists ([((aid, appr_id, args), (asp_evt p' (asp_paramsC appr_id args) et', r))]).
-        split > [ ff; rewrite app_nil_r; ff | ].
+        exists ([(aid, [(appr_id, (asp_evt p' (asp_paramsC appr_id args) et', r))])]).
+        split > [ ff; repeat (rewrite app_nil_r); ff | ].
         ff; try (normer; fail).
         unfold heads_match; normer.
   - eapply no_tc_left in X as ?; normer.
@@ -182,9 +188,9 @@ Proof.
       }
       unfold appr_summary_correct in *.
       destruct X2 as [l2rw Hl2].
-      exists ([((aid, appr_id, args), (asp_evt p (asp_paramsC appr_id args) e_inner,  l1))] ++ l2rw).
+      exists ([(aid, [(appr_id, (asp_evt p (asp_paramsC appr_id args) e_inner,  l1))])] ++ l2rw).
       pp Permutation_app.
-      split > [ ff | ].
+      split > [ ff; repeat (rewrite app_nil_r); ff | ].
       ff; try (normer; fail).
       unfold heads_match; normer.
     * 
