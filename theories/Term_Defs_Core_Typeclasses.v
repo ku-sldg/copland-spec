@@ -323,14 +323,26 @@ unfold Attr_from_JSON, Attr_to_JSON;
 jsonifiable_hammer.
 Defined.
 
-Definition EvSig_to_JSON `{Jsonifiable Attr, Jsonifiable EvCombSig} (t : EvSig) 
+Global Instance Jsonifiable_list_Attr `{Jsonifiable Attr} : Jsonifiable (list Attr).
+eapply Build_Jsonifiable with
+  (to_JSON   := fun l => JSON_Array (map to_JSON l))
+  (from_JSON := fun js => 
+                  match js with 
+                  | JSON_Array l => 
+                      result_map from_JSON l
+                  | _ => err (errStr_json_wrong_type "'list of attr'" js)
+                  end).
+induction a; jsonifiable_hammer.
+Defined.
+
+Definition EvSig_to_JSON `{Jsonifiable (list Attr), Jsonifiable EvCombSig} (t : EvSig) 
     : JSON := 
   let '(ev_arrow fwd attrs) := t in
   JSON_Object [
     (fwd_name_constant, to_JSON fwd);
     (attrs_name_constant, to_JSON attrs)].
 
-Definition EvSig_from_JSON `{Jsonifiable Attr, Jsonifiable EvCombSig} (js : JSON) : Result EvSig string :=
+Definition EvSig_from_JSON `{Jsonifiable (list Attr), Jsonifiable EvCombSig} (js : JSON) : Result EvSig string :=
   fwd_js <- JSON_get_Object fwd_name_constant js ;;
   attrs_js <- JSON_get_Object attrs_name_constant js ;;
 
@@ -339,7 +351,7 @@ Definition EvSig_from_JSON `{Jsonifiable Attr, Jsonifiable EvCombSig} (js : JSON
 
   res (ev_arrow fwd attrs).
 
-Global Instance Jsonifiable_EvSig `{Jsonifiable Attr, Jsonifiable EvCombSig} 
+Global Instance Jsonifiable_EvSig `{Jsonifiable (list Attr), Jsonifiable EvCombSig} 
     : Jsonifiable EvSig.
 eapply Build_Jsonifiable with
 (to_JSON := EvSig_to_JSON)
