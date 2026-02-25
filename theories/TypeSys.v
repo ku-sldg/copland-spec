@@ -1888,6 +1888,18 @@ Proof.
   induction X0; ff; eauto using str_provenance.
 Qed.
 
+Lemma str_provenance_antisym : forall G e1 e2,
+  str_provenance G e1 e2 ->
+  str_provenance G e2 e1 ->
+  e1 = e2.
+Proof.
+  intros G e1 e2 H12 H21.
+  prep_induction H12.
+  induction H12; ff;
+  try (invc H21; ff with a;
+    repeat (find_eapply_lem_hyp str_provenance_monotonic); ff with l; fail).
+Qed.
+
 Theorem typecheck_preserves_str_provenance : forall G t p e e',
   typeof G p e t e' ->
   str_provenance G e e'.
@@ -2006,6 +2018,38 @@ Proof.
              (compose c2 (Ctx_Right Hole)));
     ff; repeat (rewrite plug_compose); ff.
 Defined.
+
+Theorem str_provenance_impl_ordered_provenance : forall G e e',
+  str_provenance G e e' -> 
+  ordered_provenance e e'.
+Proof.
+  intros.
+  unfold ordered_provenance.
+  induction X; ff.
+  - exists Hole; ff.
+  - destruct IHX as [c Hplug].
+    exists (Ctx_Left c); ff.
+  - destruct IHX as [c Hplug].
+    exists (Ctx_Right c); ff.
+  - destruct IHX1 as [c1 Hplug1].
+    destruct IHX2 as [c2 Hplug2].
+    exists (Ctx_Split_Branch c1 c2); ff.
+  - destruct IHX as [c Hplug].
+    exists (Ctx_Split_Left c r); ff.
+  - destruct IHX as [c Hplug].
+    exists (Ctx_Asp p (asp_paramsC aid args) c); ff.
+Qed.
+
+Theorem ordered_provenance_impl_str_provenance : forall G e e',
+  ordered_provenance e e' ->
+  str_provenance G e e'.
+Proof.
+  intros.
+  unfold ordered_provenance in *.
+  destruct X.
+  generalizeEverythingElse x.
+  induction x; try (destruct a); ff; eauto using str_provenance.
+Qed.
 
 Inductive provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Type :=
   | prov_refl : forall e, provenance G e e
@@ -3003,32 +3047,38 @@ Fixpoint all_prov_sources (e_out : EvidenceT) : list EvidenceT :=
   | nonce_evt _ => [e_out]
   | left_evt e' => e_out :: all_prov_sources e' 
   | right_evt e' => e_out :: all_prov_sources e' 
-  | split_evt el er => e_out :: all_prov_sources el ++ all_prov_sources er
+  (* NOTE: Since it must always preserve both sides, we can use just one *)
+  | split_evt el er => e_out :: all_prov_sources el 
   | asp_evt p args e' => e_out :: all_prov_sources e' 
   end.
+
+Lemma all_prov_source_EvidenceT_depth_le : forall e,
+  (* Need a Succ because it must include *itself* too *)
+  length (all_prov_sources e) <= S (EvidenceT_depth e).
+Proof.
+  induction e; ff with l.
+Qed.
 
 (* Show that this list sufficiently captures all of the strong provenance cases *)
 Lemma in_all_prov_sources : forall G e e',
   str_provenance G e e' -> In e (all_prov_sources e').
 Proof.
   intros G e e' H. 
-  induction H; ff.
-  - destruct e; ff.
-  - erewrite in_app_iff; ff.
-  - erewrite in_app_iff; ff.
+  induction H; try (destruct e); ff.
 Qed.
 
 (* We made the problem into a finite search problem, and it can be then decided *)
-Fixpoint check_cands (G: GlobalContext) (p: Plc) (e_out: EvidenceT) (cands: list EvidenceT)
-  : { e' & typeof G p e' (asp APPR) e_out } + { forall e', In e' cands -> typeof G p e' (asp APPR) e_out -> False }.
+Fixpoint check_cands (G: GlobalContext) (p: Plc) (e_out: EvidenceT) (cands: list EvidenceT) (trm : Term)
+  : { e' & typeof G p e' trm e_out } 
+    + { forall e', In e' cands -> typeof G p e' trm e_out -> False }.
 Proof.
   destruct cands as [| e_cand cands_rest].
   - (* Empty candidate list *)
     right. intros e' H_in H_typ. inversion H_in.
   - (* Check current candidate or recurse *)
-    destruct (check_cands G p e_out cands_rest) as [H_found | H_notfound].
+    destruct (check_cands G p e_out cands_rest trm) as [H_found | H_notfound].
     + left. exact H_found.
-    + destruct (typeof_appr_decidable G p e_cand) as [[e_res H_typ_cand] | H_no_typ].
+    + destruct (typeof_fix G p trm e_cand) as [[e_res H_typ_cand] | H_no_typ].
       * destruct (dec_eq e_res e_out) as [H_eq | H_neq].
         -- (* Candidate typechecks exactly to e_out *)
           left.
@@ -3038,7 +3088,7 @@ Proof.
         -- (* Candidate typechecks to something else; rejected via determinism *)
             right. intros e' H_in H_typ. destruct H_in as [H_eq_cand | H_in_rest].
             ++ subst e'.
-              pose proof (typeof_deterministic G (asp APPR) p e_cand e_out e_res H_typ H_typ_cand) as Heq.
+              pose proof (typeof_deterministic G trm p e_cand e_out e_res H_typ H_typ_cand) as Heq.
               symmetry in Heq. 
               clear check_cands.
               congruence.
@@ -3050,17 +3100,21 @@ Proof.
 Defined.
 
 (* This demonstrates that we can decidable show if something is a valid appraisal *)
-Theorem typeof_appr_invertible : forall G p e_out,
-  { e' & typeof G p e' (asp APPR) e_out } + 
-  { forall e', typeof G p e' (asp APPR) e_out -> False }.
-Proof.
-  intros G p e_out.
-  destruct (check_cands G p e_out (all_prov_sources e_out)) as [H_found | H_notfound].
-  - left. exact H_found.
-  - right. intros e' H_typ.
-    apply H_notfound with (e' := e').
-    + apply in_all_prov_sources with (G := G).
-      eapply typecheck_preserves_str_provenance with (t := asp APPR) (p := p) (e' := e_out).
-      exact H_typ.
-    + exact H_typ.
-Defined.
+Definition typeof_invertible (G : GlobalContext) (p : Plc) (e_out : EvidenceT) (trm : Term) 
+    : { e' & typeof G p e' trm e_out } 
+      + { forall e', typeof G p e' trm e_out -> False } :=
+  match (check_cands G p e_out (all_prov_sources e_out) trm) with
+  | inleft H_found => inleft H_found
+  | inright H_notfound => inright (fun e' H_typ => 
+      H_notfound e' 
+        (in_all_prov_sources G _ _ 
+          (typecheck_preserves_str_provenance _ trm _ _ _ H_typ)) 
+        H_typ
+      )
+  end.
+
+(* This demonstrates that we can decidable show if something is a valid appraisal *)
+Definition typeof_appr_invertible G p e_out 
+    : { e' & typeof G p e' (asp APPR) e_out } 
+      + { forall e', typeof G p e' (asp APPR) e_out -> False } :=
+  typeof_invertible G p e_out (asp APPR).
