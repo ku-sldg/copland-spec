@@ -923,8 +923,11 @@ We outlaw NULL
     1 <= n -> (* cannot encrypt empty evidence *)
     (asp_types G) ![ enc_aspid ] = Some (ev_arrow (WRAP (exist _ 1 nlt)) attrs) ->
     typeof G p e (asp (ENC p')) (asp_evt p (enc_params p') e)
-| tc_extend_in_none : forall p e aid args attrs n nlt,
+| tc_extend_in_none : forall p e aid args attrs n nv nlt,
+    (*  NOTE: We relax this requirement, you may take in nothing, in which case you are just strictly extending without input (in reality maybe you should be re-factoring you phrase, but this is technically possible and doesn't break anything, so we allow it)
     evt_stack_denotation G e 0 -> (* must have empty evidence as input *)
+    *)
+    evt_stack_denotation G e nv -> 
     (asp_types G) ![ aid ] 
       = Some (ev_arrow (EXTEND (exist _ n nlt) InNone) attrs) ->
     typeof G 
@@ -2535,7 +2538,7 @@ Proof.
       * left; eexists; eapply tc_in_all; ff.
       * right.
         intros e' Htyp.
-        invc Htyp;
+        invc Htyp; ff;
         Control.enter (fun () =>
           match! goal with
           | [ h1 : evt_stack_denotation ?_g ?_e _ , 
@@ -2555,7 +2558,7 @@ Proof.
       * left; eexists; eapply tc_in_all; ff.
       * right.
         intros e' Htyp.
-        invc Htyp;
+        invc Htyp; ff;
         Control.enter (fun () =>
           match! goal with
           | [ h1 : evt_stack_denotation ?_g ?_e _ , 
@@ -2601,7 +2604,7 @@ Proof.
             pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
           end; ff with l); fail).
         left; eexists; eapply tc_extend_in_none; ff.
-      -- (* more than 1 incoming, better be InAll *)
+      -- (* more than 1 incoming, could be InNone or InAll *)
         destruct e0; ff; try (
           right; intros e' Htyp;
           invc Htyp; ff;
@@ -2613,7 +2616,8 @@ Proof.
             let h2v := Control.hyp h2 in
             pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
           end; ff with l); fail).
-        left; eexists; eapply tc_extend_in_all; ff with l.
+        * left; eexists; eapply tc_extend_in_all; ff with l.
+        * left; eexists; eapply tc_extend_in_none; ff with l.
   - destruct ((asp_types G) ![ sig_aspid ]) eqn:?;
     try (right; intros e' Htyp; invc Htyp; ff; fail).
     destruct e0, e0;
