@@ -32,25 +32,22 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
     events G (cop_phrase p e' t2) (i + List.length evs1) evs2 ->
     events G (cop_phrase p e (lseq t1 t2)) i (evs1 ++ evs2)
 
-| evts_bseq: forall G t1 t2 p e evs1 evs2 s i i',
-    events G (cop_phrase p (splitEv_T_l s e) t1) (i + 1) evs1 ->
-    events G (cop_phrase p (splitEv_T_r s e) t2) (i + 1 + List.length evs1) evs2 ->
+| evts_bseq: forall G t1 t2 p e evs1 evs2 i i' ep,
+    events G (cop_phrase p (proc_ev_path_left ep e) t1) (i + 1) evs1 ->
+    events G (cop_phrase p (proc_ev_path_right ep e) t2) (i + 1 + List.length evs1) evs2 ->
     i' = i + 1 + List.length evs1 + List.length evs2 ->
-    events G (cop_phrase p e (bseq s t1 t2)) i
+    events G (cop_phrase p e (bseq ep t1 t2)) i
       ([split i p] ++ evs1 ++ evs2 ++ [join i' p])
 
-| evts_bpar: forall G t1 t2 p e evs1 evs2 s i i' i'' loc et_l et_r,
-    et_l = splitEv_T_l s e ->
-    et_r = splitEv_T_r s e ->
-    events G (cop_phrase p et_l t1) (i + 2) evs1 ->
-    events G (cop_phrase p et_r t2) (i + 2 + List.length evs1) evs2 ->
+| evts_bpar: forall G t1 t2 p e evs1 evs2 i i' i'' loc ep,
+    events G (cop_phrase p (proc_ev_path_left ep e) t1) (i + 2) evs1 ->
+    events G (cop_phrase p (proc_ev_path_right ep e) t2) (i + 2 + List.length evs1) evs2 ->
     loc = i + 1 ->
     i' = i + 2 + List.length evs1 + List.length evs2 ->
     i'' = i + 2 + List.length evs1 + List.length evs2 + 1 ->
-    events G (cop_phrase p e (bpar s t1 t2)) i
-      ([split i p] ++ [cvm_thread_start loc loc p et_r t2] ++ evs1 ++ 
+    events G (cop_phrase p e (bpar ep t1 t2)) i
+      ([split i p] ++ [cvm_thread_start loc loc p e t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end i' loc] ++ [join i'' p]).
-#[export] Hint Constructors events : core.
 
 
 Fixpoint events_fix (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) (i : nat) 
@@ -66,16 +63,16 @@ Fixpoint events_fix (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) (i 
     e' <- eval G p e t1 ;;
     evs2 <- events_fix G p e' t2 (i + List.length evs1) ;;
     res (evs1 ++ evs2)
-  | bseq s t1 t2 => 
-    evs1 <- events_fix G p (splitEv_T_l s e) t1 (i + 1) ;;
-    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 1 + List.length evs1) ;;
+  | bseq ep t1 t2 => 
+    evs1 <- events_fix G p (proc_ev_path_left ep e) t1 (i + 1) ;;
+    evs2 <- events_fix G p (proc_ev_path_right ep e) t2 (i + 1 + List.length evs1) ;;
 
     res ([split i p] ++ evs1 ++ evs2 ++ [join (i + 1 + List.length evs1 + List.length evs2) p])
-  | bpar s t1 t2 =>
-    evs1 <- events_fix G p (splitEv_T_l s e) t1 (i + 2) ;;
-    evs2 <- events_fix G p (splitEv_T_r s e) t2 (i + 2 + List.length evs1) ;;
+  | bpar ep t1 t2 =>
+    evs1 <- events_fix G p (proc_ev_path_left ep e) t1 (i + 2) ;;
+    evs2 <- events_fix G p (proc_ev_path_right ep e) t2 (i + 2 + List.length evs1) ;;
     let loc := i + 1 in
-    res ([split i p] ++ [cvm_thread_start loc loc p (splitEv_T_r s e) t2] ++ evs1 ++ 
+    res ([split i p] ++ [cvm_thread_start loc loc p e t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end (i + 2 + List.length evs1 + List.length evs2) loc] ++ 
       [join (i + 2 + List.length evs1 + List.length evs2 + 1) p])
   end.
@@ -87,10 +84,10 @@ Proof.
   split.
   - generalizeEverythingElse t; induction t;
     simpl in *; intuition; invc H; eauto;
-    ff a.
+    ff with a.
   - generalizeEverythingElse t; induction t;
     simpl in *; intuition;
-    ff u, a; econstructor; eauto.
+    ff with u, a; econstructor; eauto.
 Qed.
     
 Lemma events_range: forall G t p e evs i,

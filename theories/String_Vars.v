@@ -26,7 +26,6 @@ Definition STR_ASP_RUN : string := "ASP_RUN".
 Definition STR_ASP_ID : string := "ASP_ID".
 Definition STR_ASP_ARGS : string := "ASP_ARGS".
 Definition STR_ASP_PLC : string := "ASP_PLC".
-Definition STR_ASP_TARG_ID : string := "ASP_TARG_ID".
 
 Definition type_string_constant : string := "CONSTRUCTOR".
 Definition body_string_constant : string := "BODY".
@@ -37,6 +36,9 @@ Definition replace_name_constant : string := "REPLACE".
 Definition wrap_name_constant : string := "WRAP".
 Definition unwrap_name_constant : string := "UNWRAP".
 Definition extend_name_constant : string := "EXTEND".
+
+Definition attrs_name_constant  : string := "ATTRS".
+Definition attr_reconstr_constant : string := "RECONSTR".
 
 Definition mt_name_constant : string := "mt_evt".
 Definition nonce_evt_name_constant : string := "nonce_evt".
@@ -57,6 +59,10 @@ Definition enc_name_constant  : string := "ENC".
 
 Definition evidencet_name_constant : string := "EvidenceT".
 
+Definition left_path_name_constant : string := "left_path".
+Definition right_path_name_constant : string := "right_path".
+Definition both_paths_name_constant : string := "both_paths".
+
 Definition att_name_constant  : string := "att".
 Definition lseq_name_constant : string := "lseq".
 Definition bseq_name_constant : string := "bseq".
@@ -70,10 +76,6 @@ Definition none_name_constant : string := "NONE".
 
 Definition split1_name_constant : string := "split1".
 Definition split2_name_constant : string := "split2".
-
-Definition ev_out_sig_name_constant : string := "EvOutSig".
-Definition outn_name_constant : string := "OutN".
-Definition outunwrap_name_constant : string := "OutUnwrap".
 
 Definition asp_types_name_constant : string := "ASP_Types".
 Definition asp_comps_name_constant : string := "ASP_Comps".

@@ -26,7 +26,6 @@ Definition STR_ASP_RUN : string := "ASP_RUN".
 Definition STR_ASP_ID : string := "ASP_ID".
 Definition STR_ASP_ARGS : string := "ASP_ARGS".
 Definition STR_ASP_PLC : string := "ASP_PLC".
-Definition STR_ASP_TARG_ID : string := "ASP_TARG_ID".
 
 Definition STR_Session_Plc : string := "Session_Plc".
 Definition STR_Plc_Mapping : string := "Plc_Mapping".

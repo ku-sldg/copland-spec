@@ -18,36 +18,6 @@ From CoplandSpec Require Export Term_Defs_Core Term_Defs_Core_Typeclasses Built_
 From RocqCandy Require Import All.
 Import ResultNotation.
 
-Definition splitEv_T_l (sp:Split) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | (ALL,_) => e
-  |  _ => mt_evt
-  end.
-
-Definition splitEv_T_r (sp:Split) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | (_,ALL) => e
-  |  _ => mt_evt
-  end.
-
-Definition splitEv_l (sp:Split) (e:Evidence): Evidence :=
-  match sp with
-  | (ALL, _) => e
-  | _ => mt_evc
-  end.
-
-Definition splitEv_r (sp:Split) (e:Evidence): Evidence :=
-  match sp with
-  | (_,ALL) => e
-  | _ => mt_evc
-  end.
-
-Definition sp_ev (sp:SP) (e:EvidenceT) : EvidenceT :=
-  match sp with
-  | ALL => e
-  | NONE => mt_evt
-  end.
-
 Definition equiv_EvidenceT `{DecEq ASP_ID, DecEq nat} (G : GlobalContext) (e1 e2 : EvidenceT) : bool :=
   n1 <- et_size G e1 ;;
   n2 <- et_size G e2 ;;
@@ -77,22 +47,22 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
       recurse on the underlying evidence that was not part of the extension.
   *)
   | asp_evt asp_top_plc ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     match (asp_types G) ![ asp_id ] with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow fwd in_sig out_sig) =>
+    | Some (ev_arrow fwd attrs) =>
       match (asp_comps G) ![ asp_id ] with
       | None => err err_str_asp_no_compat_appr_asp
       | Some appr_id =>
-        let dual_par := asp_paramsC appr_id args targ_plc targ in
+        let dual_par := asp_paramsC appr_id args in
         match fwd with
-        | REPLACE => (* just apply the dual once *)
+        | REPLACE _ => (* just apply the dual once *)
           res (asp_evt p dual_par ev_out)
-        | WRAP => 
+        | WRAP _ => 
           (* apply the dual to get a new evidence to operate on, then recurse *)
           match (asp_types G) ![ appr_id ] with
           | None => err err_str_asp_no_type_sig
-          | Some (ev_arrow UNWRAP in_sig' out_sig') =>
+          | Some (ev_arrow UNWRAP attrs) =>
             let ev_out' := asp_evt p dual_par ev_out in
             F e' ev_out'
           | _ => err err_str_appr_compute_evt_neq
@@ -104,19 +74,8 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           (* NOTE: In practice this should nearly never happen as the appraisal procedure itself should be doing the UNWRAP and subsequent functions *)
           r <- apply_to_evidence_below G (fun e => F e ev_out) [Trail_UNWRAP asp_id] e' ;;
           r
-          (* match e' with
-          | asp_evt _ (asp_paramsC asp_id' args' targ_plc' targ') e'' => 
-            match (lookup asp_id' (asp_types G)) with
-            | None => errC err_str_asp_no_type_sig
-            | Some (ev_arrow WRAP in_sig' out_sig') =>
-              (* We are a well-typed (UNWRAP (WRAP e'')), so continue *)
-              F e'' ev_out
-            | _ => errC err_str_appr_not_originally_a_wrap
-            end
-          | _ => errC err_str_appr_only_allow_on_asp
-          end *)
 
-        | EXTEND => 
+        | EXTEND _ _ => 
           (* appraisal of an extend involves doing the appraisal of the extension
           and then separately the appraisal of the underlying *)
           ev_under <- F e' e' ;;
@@ -151,19 +110,19 @@ Module Testing.
     ff.
   Qed.
 
-  Example appr_procedure_ex2 : forall G p,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP InAll (OutN 1)) ->
+  Example appr_procedure_ex2 : forall G p attrs,
+    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP (exist _ 1 Nat.lt_0_1)) attrs) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP InAll (OutUnwrap)) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs) ->
     appr_procedure G p (asp_evt p (enc_params p) (nonce_evt 1)) = 
     res (
       asp_evt p check_nonce_params (
-      asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid)
+      asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p))
         (asp_evt p (enc_params p) (nonce_evt 1)))
     ).
   Proof.
     unfold appr_procedure.
-    ff a, r, u, l; unfold equiv_EvidenceT in *; ff.
+    ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
   Qed.
 
   Example appr_procedure_ex3 : forall G p,
@@ -177,21 +136,21 @@ Module Testing.
     reflexivity.
   Qed.
 
-  Example appr_procedure_ex4 : forall G p,
-    lookup enc_aspid (asp_types G) = Some (ev_arrow WRAP InAll (OutN 1)) ->
+  Example appr_procedure_ex4 : forall G p attrs,
+    lookup enc_aspid (asp_types G) = Some (ev_arrow (WRAP (exist _ 1 Nat.lt_0_1)) attrs) ->
     lookup enc_aspid (asp_comps G) = Some enc'_aspid ->
-    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP InAll (OutUnwrap)) ->
+    lookup enc'_aspid (asp_types G) = Some (ev_arrow UNWRAP attrs) ->
     appr_procedure G p (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2))) = res (split_evt 
       (asp_evt p check_nonce_params 
         (left_evt 
-          (asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid) 
+          (asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p)) 
             (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2)))
           )
         )
       )
       (asp_evt p check_nonce_params 
         (right_evt 
-          (asp_evt p (asp_paramsC enc'_aspid enc_aspargs p enc_targid) 
+          (asp_evt p (asp_paramsC enc'_aspid (enc_aspargs p)) 
             (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2)))
           )
         )
@@ -210,7 +169,7 @@ Definition eval_asp `{DecEq ASP_ID} (G : GlobalContext) (a : ASP)
   match a with
   | NULL => res mt_evt
   | ASPC params =>
-    let '(asp_paramsC asp_id args targ_plc targ) := params in
+    let '(asp_paramsC asp_id args) := params in
     res (asp_evt p params e)
   | APPR => appr_procedure G p e
   | SIG => res (asp_evt p sig_params e)
@@ -228,16 +187,16 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
   | mt_evt => True
   | nonce_evt n => True
   | asp_evt asp_top_plc ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     lookup asp_id (asp_comps G) <> None /\
     (match ((asp_types G) ![ asp_id ]) with
     | None => False
-    | Some (ev_arrow fwd in_sig out_sig) =>
+    | Some (ev_arrow fwd attrs) =>
       match fwd with
-      | REPLACE => True
-      | WRAP => F e'
+      | REPLACE _ => True
+      | WRAP _ => F e'
       | UNWRAP => F e'
-      | EXTEND => F e'
+      | EXTEND _ _ => F e'
       end
     end)
   | left_evt e' => 
@@ -248,6 +207,20 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
       F e1 /\ F e2
   end.
 
+Definition proc_ev_path_left (ep : ev_path) (e : EvidenceT) : EvidenceT :=
+  match ep with
+  | left_path => e
+  | right_path => mt_evt
+  | both_paths => e
+  end.
+
+Definition proc_ev_path_right (ep : ev_path) (e : EvidenceT) : EvidenceT :=
+  match ep with
+  | left_path => mt_evt
+  | right_path => e
+  | both_paths => e
+  end.
+
 Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) 
     : Result EvidenceT string :=
   match t with
@@ -256,14 +229,14 @@ Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t :
   | lseq t1 t2 => 
       e1 <- eval G p e t1 ;;
       eval G p e1 t2
-  | bseq s t1 t2 => 
-      e1 <- eval G p (splitEv_T_l s e) t1 ;; 
-      e2 <- eval G p (splitEv_T_r s e) t2 ;;
-      res (split_evt e1 e2)
-  | bpar s t1 t2 => 
-      e1 <- eval G p (splitEv_T_l s e) t1 ;; 
-      e2 <- eval G p (splitEv_T_r s e) t2 ;;
-      res (split_evt e1 e2)
+  | bseq ep t1 t2 => 
+    e1 <- eval G p (proc_ev_path_left ep e) t1 ;;
+    e2 <- eval G p (proc_ev_path_right ep e) t2 ;;
+    res (split_evt e1 e2)
+  | bpar ep t1 t2 => 
+    e1 <- eval G p (proc_ev_path_left ep e) t1 ;;
+    e2 <- eval G p (proc_ev_path_right ep e) t2 ;;
+    res (split_evt e1 e2)
   end.
 
 (** * Events
@@ -298,13 +271,13 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
   | mt_evt => res 0
   | nonce_evt _ => res 1 (* [umeas check_nonce nonce] *)
   | asp_evt p par e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := par in
+    let '(asp_paramsC asp_id args) := par in
     match ((asp_types G) ![ asp_id ]) with
     | None => err err_str_asp_no_type_sig
-    | Some (ev_arrow asp_fwd in_sig out_sig) =>
+    | Some (ev_arrow asp_fwd attrs) =>
       match asp_fwd with
-      | REPLACE => res 1 (* Single dual appr asp for 1 *)
-      | WRAP => 
+      | REPLACE _ => res 1 (* Single dual appr asp for 1 *)
+      | WRAP _ => 
         (* we need the size of recursing *)
         n <- F e' ;;
         res (1 + n) (* 1 for the unwrap, then n for rec case *)
@@ -312,7 +285,7 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
         (* we are just doing the recursion *)
         r <- apply_to_evidence_below G F [Trail_UNWRAP asp_id] e' ;; 
         r
-      | EXTEND => 
+      | EXTEND _ _ => 
         (* we need the size of recursing *)
         n <- F e' ;;
         res (3 + n) (* split (1), extend dual (1), rec case (n), join (1) *)
@@ -351,15 +324,16 @@ Fixpoint events_size `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : Evidence
     e2 <- events_size G p e' t2 ;; (* next e2 events are done *)
     res (e1 + e2) (* +e1 for first evs, +e2 for second evs *)
   
-  | bseq s t1 t2 => 
-    e1 <- events_size G p (splitEv_T_l s e) t1 ;; (* left does e1 events *)
-    e2 <- events_size G p (splitEv_T_r s e) t2 ;; (* right does e2 events *)
-    res (2 + e1 + e2) (* +1 for split; +e1,+e2 for sides, +1 for join *)
-  | bpar s t1 t2 => 
-    e1 <- events_size G p (splitEv_T_l s e) t1 ;; (* left does e1 events *)
-    e2 <- events_size G p (splitEv_T_r s e) t2 ;; (* right does e2 events *)
+  | bseq ep t1 t2 => 
+    (* +1 for split, +e1 for left evs, +e2 for right evs, +1 for join *)
+    e1 <- events_size G p (proc_ev_path_left ep e) t1 ;; (* first e1 events are done *)
+    e2 <- events_size G p (proc_ev_path_right ep e) t2 ;; (* next e2 events are done *)
+    res (2 + e1 + e2) 
+  | bpar ep t1 t2 => 
     (* + 1 for split, +1 for thread_start; +e1,+e2 for sides, +1 for thread_join, + 1 for join *)
-    res (4 + e1 + e2) 
+    e1 <- events_size G p (proc_ev_path_left ep e) t1 ;; (* first e1 events are done *)
+    e2 <- events_size G p (proc_ev_path_right ep e) t2 ;;
+    res (4 + e1 + e2)
   end.
 
 
@@ -383,19 +357,19 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
   | nonce_evt n => res [umeas i p check_nonce_params ev_out]
   (* (nonce_evt n)] *)
   | asp_evt p' ps e' => 
-    let '(asp_paramsC asp_id args targ_plc targ) := ps in
+    let '(asp_paramsC asp_id args) := ps in
     match ((asp_comps G) ![ asp_id ]) with
     | None => err err_str_asp_no_compat_appr_asp
     | Some appr_id => 
-      let dual_par := asp_paramsC appr_id args targ_plc targ in
+      let dual_par := asp_paramsC appr_id args in
       match ((asp_types G) ![ asp_id ]) with
       | None => err err_str_asp_no_type_sig
-      | Some (ev_arrow fwd in_sig out_sig) =>
+      | Some (ev_arrow fwd attrs) =>
         match fwd with
-        | REPLACE => (* single dual for replace *)
+        | REPLACE _ => (* single dual for replace *)
           res ([umeas i p dual_par ev_out])
 
-        | WRAP => (* do the unwrap *)
+        | WRAP _ => (* do the unwrap *)
           let unwrap_ev := umeas i p dual_par ev_out in
           let new_ev_out := asp_evt p dual_par ev_out in
           (* do recursive case *)
@@ -406,7 +380,7 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           r <- apply_to_evidence_below G (fun e' => F e' ev_out i) [Trail_UNWRAP asp_id] e' ;;
           r
 
-        | EXTEND => (* do the extend dual *)
+        | EXTEND _ _ => (* do the extend dual *)
           (* ev_out does not change for the umeas event,
           but it is replaced by e' for the recursive call
           as the extend does not effect the underlying evidence! *)
@@ -514,14 +488,23 @@ Lemma appr_events'_size_works : forall G p e ev_out i evs,
 Proof.
   intros G.
   induction e using (Evidence_subterm_path_Ind_special G); 
-  simpl in *; intros; intuition; ff u, a;
+  simpl in *; intros; intuition; ff with u, a;
   ateb_simp; ff;
   try (repeat (rewrite length_app in *); simpl in *; f_equal; lia).
 Qed.
+(* Opaque appr_events'. *)
 
 Definition appr_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat) 
     : Result (list Ev) string :=
   appr_events' G p e e i.
+
+Lemma appr_events_size_works : forall G p e i evs,
+  appr_events G p e i = res evs ->
+  appr_events_size G e = res (List.length evs).
+Proof.
+  intros.
+  eapply appr_events'_size_works; ff.
+Qed.
 
 Definition asp_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
     (a : ASP) (i : nat) : Result (list Ev) string :=
@@ -538,8 +521,8 @@ Lemma asp_appr_events_size_works : forall G p e i evs,
   asp_events G p e APPR i = res evs ->
   appr_events_size G e = res (List.length evs).
 Proof.
-  induction e; ff;
-  try (find_eapply_lem_hyp appr_events'_size_works; ff).
+  unfold asp_events.
+  eapply appr_events_size_works.
 Qed.
 
 Lemma asp_events_size_works : forall G p a e i evs,
@@ -581,7 +564,7 @@ Lemma true_last_app_spec : forall A (l1 l2 : list A) x,
   true_last (l1 ++ l2) = Some x ->
   (true_last l1 = Some x /\ l2 = nil) \/ true_last l2 = Some x.
 Proof.
-  induction l1; ff a, r;
+  induction l1; ff with a, r;
   find_eapply_lem_hyp true_last_none_iff_nil; 
   find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
@@ -602,11 +585,11 @@ Lemma appr_events'_deterministic_index : forall G p e ev_out i evs,
     ev v' = i + List.length evs - 1.
 Proof.
   intros G.
-  induction e using (Evidence_subterm_path_Ind_special G); ff u, a, l;
+  induction e using (Evidence_subterm_path_Ind_special G); ff with u, a, l;
   try (solve_true_last_app);
   try (solve_true_last_none);
-  unpack_atebs; ff a, l.
-  - find_eapply_lem_hyp IHe; ff l; lia.
+  unpack_atebs; ff with a, l.
+  - find_eapply_lem_hyp IHe; ff with lia; lia.
   - find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
 
@@ -616,6 +599,5 @@ Theorem asp_events_deterministic_index : forall G p a e i evs,
     true_last evs = Some v' ->
     ev v' = i + List.length evs - 1.
 Proof.
-  induction a; ff l;
-  eapply appr_events'_deterministic_index; eauto.
+  induction a; ff with l, (eapply appr_events'_deterministic_index).
 Qed.
