@@ -59,6 +59,10 @@ Definition enc_name_constant  : string := "ENC".
 
 Definition evidencet_name_constant : string := "EvidenceT".
 
+Definition left_path_name_constant : string := "left_path".
+Definition right_path_name_constant : string := "right_path".
+Definition both_paths_name_constant : string := "both_paths".
+
 Definition att_name_constant  : string := "att".
 Definition lseq_name_constant : string := "lseq".
 Definition bseq_name_constant : string := "bseq".

@@ -79,6 +79,21 @@ Equations? normalize_ev (G : GlobalContext) (e : EvidenceT)
 - ff with l.
 Defined.
 
+Lemma proc_left_normalized : forall G e e' ep,
+  normalize_ev G e = normalize_ev G e' ->
+  normalize_ev G (proc_ev_path_left ep e) = 
+    normalize_ev G (proc_ev_path_left ep e').
+Proof.
+  destruct ep; ff.
+Qed.
+Lemma proc_right_normalized : forall G e e' ep,
+  normalize_ev G e = normalize_ev G e' ->
+  normalize_ev G (proc_ev_path_right ep e) = 
+    normalize_ev G (proc_ev_path_right ep e').
+Proof.
+  destruct ep; ff.
+Qed.
+
 Theorem normalize_ev_measure_decrease : forall G e e',
   normalize_ev G e = e' ->
   EvidenceT_depth e' <= EvidenceT_depth e.
@@ -605,6 +620,22 @@ Inductive evt_stack_denotation (G : GlobalContext)
 
 Ltac2 Notation "evter" := (ff with (eauto using evt_stack_denotation)).
 
+Lemma evt_stack_denotation_proc_left : forall G e n,
+  evt_stack_denotation G e n ->
+  forall ep,
+  { n' & evt_stack_denotation G (proc_ev_path_left ep e) n'}.
+Proof.
+  destruct ep; evter.
+Qed.
+
+Lemma evt_stack_denotation_proc_right : forall G e n,
+  evt_stack_denotation G e n ->
+  forall ep,
+  { n' & evt_stack_denotation G (proc_ev_path_right ep e) n'}.
+Proof.
+  destruct ep; evter.
+Qed.
+
 Definition wf_EvidenceT (G : GlobalContext) (e : EvidenceT) :=
   { n & evt_stack_denotation G e n }.
 
@@ -923,11 +954,12 @@ We outlaw NULL
     1 <= n -> (* cannot encrypt empty evidence *)
     (asp_types G) ![ enc_aspid ] = Some (ev_arrow (WRAP (exist _ 1 nlt)) attrs) ->
     typeof G p e (asp (ENC p')) (asp_evt p (enc_params p') e)
-| tc_extend_in_none : forall p e aid args attrs n nv nlt,
+| tc_extend_in_none : forall p e aid args attrs n nlt,
     (*  NOTE: We relax this requirement, you may take in nothing, in which case you are just strictly extending without input (in reality maybe you should be re-factoring you phrase, but this is technically possible and doesn't break anything, so we allow it)
     evt_stack_denotation G e 0 -> (* must have empty evidence as input *)
     *)
-    evt_stack_denotation G e nv -> 
+    evt_stack_denotation G e 0 -> (* must have empty evidence as input *)
+    (* evt_stack_denotation G e nv ->  *)
     (asp_types G) ![ aid ] 
       = Some (ev_arrow (EXTEND (exist _ n nlt) InNone) attrs) ->
     typeof G 
@@ -958,14 +990,14 @@ We outlaw NULL
     typeof G p e t1 e1 ->
     typeof G p e1 t2 e2 ->
     typeof G p e (lseq t1 t2) e2
-| tc_bseq : forall p e t1 t2 e1 e2,
-    typeof G p e t1 e1 ->
-    typeof G p e t2 e2 ->
-    typeof G p e (bseq t1 t2) (split_evt e1 e2)
-| tc_bpar : forall p e t1 t2 e1 e2,
-    typeof G p e t1 e1 ->
-    typeof G p e t2 e2 ->
-    typeof G p e (bpar t1 t2) (split_evt e1 e2)
+| tc_bseq : forall p e t1 t2 e1 e2 ep,
+    typeof G p (proc_ev_path_left ep e) t1 e1 ->
+    typeof G p (proc_ev_path_right ep e) t2 e2 ->
+    typeof G p e (bseq ep t1 t2) (split_evt e1 e2)
+| tc_bpar : forall p e t1 t2 e1 e2 ep,
+    typeof G p (proc_ev_path_left ep e) t1 e1 ->
+    typeof G p (proc_ev_path_right ep e) t2 e2 ->
+    typeof G p e (bpar ep t1 t2) (split_evt e1 e2)
 (* Appraisal TC Rules *)
 | tc_appr_mt : forall p e,
     normalize_ev G e = mt_evt ->
@@ -1024,8 +1056,21 @@ Inductive same_modulo_plc : EvidenceT -> EvidenceT -> Type :=
         (asp_evt p1 (asp_paramsC aid args1) e1) 
         (asp_evt p2 (asp_paramsC aid args2) e2).
 Local Hint Constructors same_modulo_plc : smp.
-
 Ltac2 Notation "smper" := (ff with (eauto with smp)).
+
+Lemma same_modulo_plc_proc_ev_left : forall e1 e2 ep,
+  same_modulo_plc e1 e2 ->
+  same_modulo_plc (proc_ev_path_left ep e1) (proc_ev_path_left ep e2).
+Proof.
+  destruct ep; smper.
+Qed.
+
+Lemma same_modulo_plc_proc_ev_right : forall e1 e2 ep,
+  same_modulo_plc e1 e2 ->
+  same_modulo_plc (proc_ev_path_right ep e1) (proc_ev_path_right ep e2).
+Proof.
+  destruct ep; smper.
+Qed.
 
 Lemma same_modulo_plc_refl : forall e,
   same_modulo_plc e e.
@@ -1315,6 +1360,8 @@ Proof.
     split.
     * eauto using typeof.
     * eauto using same_modulo_plc.
+    * eapply same_modulo_plc_proc_ev_right; eauto using same_modulo_plc.
+    * eapply same_modulo_plc_proc_ev_left; eauto using same_modulo_plc.
   - invc H; ff.
     find_eapply_lem_hyp IHt1 > [ | eauto using same_modulo_plc ].
     find_eapply_lem_hyp IHt2 > [ | eauto using same_modulo_plc ].
@@ -1325,6 +1372,8 @@ Proof.
     split.
     * eauto using typeof.
     * eauto using same_modulo_plc.
+    * eapply same_modulo_plc_proc_ev_right; eauto using same_modulo_plc.
+    * eapply same_modulo_plc_proc_ev_left; eauto using same_modulo_plc.
 Qed.
 
 Theorem typeof_deterministic : forall G t p e e1 e2,
@@ -1441,12 +1490,16 @@ Proof.
   - invc X0; find_eapply_lem_hyp IHt1; ff.
     destruct X; ff.
   - invc X0.
-    find_eapply_lem_hyp IHt1; ff.
-    find_eapply_lem_hyp IHt2; ff.
+    eapply evt_stack_denotation_proc_left in Hn as Hl; ddeps.
+    eapply evt_stack_denotation_proc_right in Hn as Hr; ddeps.
+    eapply IHt1 in X; ff.
+    eapply IHt2 in X1; ff.
     destruct X, X1; evter.
   - invc X0.
-    find_eapply_lem_hyp IHt1; ff.
-    find_eapply_lem_hyp IHt2; ff.
+    eapply evt_stack_denotation_proc_left in Hn as Hl; ddeps.
+    eapply evt_stack_denotation_proc_right in Hn as Hr; ddeps.
+    eapply IHt1 in X; ff.
+    eapply IHt2 in X1; ff.
     destruct X, X1; evter.
 Qed.
 
@@ -1480,13 +1533,13 @@ Proof.
     eexists; ff; eapply tc_lseq; ff.
 
   - (* tc_bseq *)
-    edestruct IHHty1; eauto;
-    edestruct IHHty2; eauto.
+    edestruct IHHty1 > [ eapply proc_left_normalized; eauto | ].
+    edestruct IHHty2 > [ eapply proc_right_normalized; eauto | ].
     eexists > [ eapply tc_bseq; ff | normer ].
 
   - (* tc_bpar *)
-    edestruct IHHty1; eauto.
-    edestruct IHHty2; eauto.
+    edestruct IHHty1 > [ eapply proc_left_normalized; eauto | ].
+    edestruct IHHty2 > [ eapply proc_right_normalized; eauto | ].
     eexists > [ eapply tc_bpar; eauto | normer ].
 
   - (* tc_appr_asp *)
@@ -1869,6 +1922,9 @@ Inductive str_provenance (G : GlobalContext) : EvidenceT -> EvidenceT -> Type :=
   | str_prov_split_left : forall l r e,
       str_provenance G e l ->
       str_provenance G e (split_evt l r)
+  | str_prov_split_right : forall l r e,
+      str_provenance G e r ->
+      str_provenance G e (split_evt l r)
   | str_prov_asp : forall e p aid args e',
       str_provenance G e e' ->
       str_provenance G e (asp_evt p (asp_paramsC aid args) e').
@@ -1910,7 +1966,13 @@ Proof.
   intros.
   induction X; eauto using str_provenance.
   - eapply str_provenance_trans; ff.
-  - eapply str_provenance_trans; ff.
+  - destruct ep; ff;
+    eapply str_provenance_trans; ff;
+    eauto using str_provenance.
+  - destruct ep; ff;
+    eapply str_provenance_trans; ff;
+    eauto using str_provenance.
+  - eapply str_provenance_trans; ff;
     eauto using str_provenance.
   - eapply str_prov_split_inj;
     eapply str_provenance_trans > [ | eassumption ];
@@ -1931,10 +1993,11 @@ Inductive EvContext :=
   | Ctx_Right : EvContext -> EvContext
   (* The Contraction Constructor: 'e' is used in BOTH sub-trees *)
   | Ctx_Split_Branch : EvContext -> EvContext -> EvContext 
-  (* We can also just let evidence flow into one branch (always left) 
-    the right branch evidence must also be passed to forward
+  (* We can also just let evidence flow into one branch 
+    and the alternate branch evidence must also be passed to forward
   *)
   | Ctx_Split_Left : EvContext -> EvidenceT -> EvContext
+  | Ctx_Split_Right : EvidenceT -> EvContext -> EvContext
   (* ASP Wrapper: We can only ever wrap 1 deep!! *)
   | Ctx_Asp : Plc -> ASP_PARAMS -> EvContext -> EvContext.
 
@@ -1947,6 +2010,7 @@ Fixpoint plug (c : EvContext) (e : EvidenceT) : EvidenceT :=
   (* Contraction: Plug 'e' into both c1 and c2 *)
   | Ctx_Split_Branch c1 c2 => split_evt (plug c1 e) (plug c2 e)
   | Ctx_Split_Left c' er => split_evt (plug c' e) er
+  | Ctx_Split_Right er c' => split_evt er (plug c' e)
   | Ctx_Asp p args c' => asp_evt p args (plug c' e)
   end.
   
@@ -1958,6 +2022,7 @@ Fixpoint compose (outer inner : EvContext) : EvContext :=
   | Ctx_Right c' => Ctx_Right (compose c' inner)
   | Ctx_Split_Branch c1 c2 => Ctx_Split_Branch (compose c1 inner) (compose c2 inner)
   | Ctx_Split_Left c' er => Ctx_Split_Left (compose c' inner) er
+  | Ctx_Split_Right er c' => Ctx_Split_Right er (compose c' inner)
   | Ctx_Asp p par c' => Ctx_Asp p par (compose c' inner)
   end.
 
@@ -1992,12 +2057,19 @@ Proof.
   - (* tc_bseq: e flows into BOTH t1 and t2 *)
     destruct IHtypeof1 as [c1 Hplug1].
     destruct IHtypeof2 as [c2 Hplug2].
-    (* We use the Branching constructor! *)
-    exists (Ctx_Split_Branch c1 c2); ff.
+    destruct ep.
+    * exists (Ctx_Split_Left c1 (plug c2 mt_evt)); ff.
+    * exists (Ctx_Split_Right (plug c1 mt_evt) c2); ff.
+    * (* We use the Branching constructor! *)
+      exists (Ctx_Split_Branch c1 c2); ff.
   - (* tc_bpar: Symmetric to bseq *)
     destruct IHtypeof1 as [c1 Hplug1].
     destruct IHtypeof2 as [c2 Hplug2].
-    exists (Ctx_Split_Branch c1 c2); ff.
+    destruct ep.
+    * exists (Ctx_Split_Left c1 (plug c2 mt_evt)); ff.
+    * exists (Ctx_Split_Right (plug c1 mt_evt) c2); ff.
+    * (* We use the Branching constructor! *)
+      exists (Ctx_Split_Branch c1 c2); ff.
   (* --- Appraisal Cases --- *)
   - (* tc_appr_mt *) exists Hole; reflexivity.
   - (* tc_appr_nonce *) exists (Ctx_Asp p check_nonce_params Hole); reflexivity.
@@ -2039,6 +2111,8 @@ Proof.
     exists (Ctx_Split_Branch c1 c2); ff.
   - destruct IHX as [c Hplug].
     exists (Ctx_Split_Left c r); ff.
+  - destruct IHX as [c Hplug].
+    exists (Ctx_Split_Right l c); ff.
   - destruct IHX as [c Hplug].
     exists (Ctx_Asp p (asp_paramsC aid args) c); ff.
 Qed.
@@ -2178,8 +2252,8 @@ Proof.
   - invc H. ff.
   - invc H; ff with a;
     find_eapply_lem_hyp provenance_trans; ff.
-  - invc H; ff with a; eauto using provenance.
-  - invc H; ff with a; eauto using provenance.
+  - invc H; destruct e; ff with a; eauto using provenance.
+  - invc H; destruct e; ff with a; eauto using provenance.
 Qed.
 
 (* Major Theorem: Appraisability *)
@@ -2463,18 +2537,8 @@ Fixpoint term_size (t : Term) : nat :=
   | asp _ => 1
   | att _ t' => S (term_size t')
   | lseq t1 t2 => S (term_size t1 + term_size t2)
-  | bseq t1 t2 => S (term_size t1 + term_size t2)
-  | bpar t1 t2 => S (term_size t1 + term_size t2)
-  end.
-
-Fixpoint term_ev_size (e : EvidenceT) (t : Term) : nat :=
-  match t with
-  | asp APPR => EvidenceT_depth e
-  | asp _ => 1
-  | att _ t' => S (term_ev_size e t')
-  | lseq t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
-  | bseq t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
-  | bpar t1 t2 => S (term_ev_size e t1 + term_ev_size e t2)
+  | bseq ep t1 t2 => S (term_size t1 + term_size t2)
+  | bpar ep t1 t2 => S (term_size t1 + term_size t2)
   end.
 
 Equations? typeof_fix (G : GlobalContext) (p : Plc) (t : Term) (e : EvidenceT) 
@@ -2503,20 +2567,20 @@ Equations? typeof_fix (G : GlobalContext) (p : Plc) (t : Term) (e : EvidenceT)
         end
     | inright Hnty1 => inright (fun e1 Htyp => _)
     end ;
-  typeof_fix G p (bseq t1 t2) e := 
-    match typeof_fix G p t1 e, typeof_fix G p t2 e with
+  typeof_fix G p (bseq ep t1 t2) e := 
+    match typeof_fix G p t1 (proc_ev_path_left ep e), typeof_fix G p t2 (proc_ev_path_right ep e) with
     | inleft (existT _ e1 Htyp1), inleft (existT _ e2 Htyp2) => 
         inleft (existT _ (split_evt e1 e2) 
-          (tc_bseq _ _ _ _ _ _ _ Htyp1 Htyp2)
+          (tc_bseq _ _ _ _ _ _ _ _ Htyp1 Htyp2)
         )
     | inright Hnty1, _ => inright (fun e1 Htyp => _)
     | _, inright Hnty2 => inright (fun e2 Htyp => _)
     end ;
-  typeof_fix G p (bpar t1 t2) e := 
-    match typeof_fix G p t1 e, typeof_fix G p t2 e with
+  typeof_fix G p (bpar ep t1 t2) e := 
+    match typeof_fix G p t1 (proc_ev_path_left ep e), typeof_fix G p t2 (proc_ev_path_right ep e) with
     | inleft (existT _ e1 Htyp1), inleft (existT _ e2 Htyp2) => 
         inleft (existT _ (split_evt e1 e2) 
-          (tc_bpar _ _ _ _ _ _ _ Htyp1 Htyp2)
+          (tc_bpar _ _ _ _ _ _ _ _ Htyp1 Htyp2)
         )
     | inright Hnty1, _ => inright (fun e1 Htyp => _)
     | _, inright Hnty2 => inright (fun e2 Htyp => _)
@@ -2617,7 +2681,7 @@ Proof.
             pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff
           end; ff with l); fail).
         * left; eexists; eapply tc_extend_in_all; ff with l.
-        * left; eexists; eapply tc_extend_in_none; ff with l.
+        (* * left; eexists; eapply tc_extend_in_none; ff with l. *)
   - destruct ((asp_types G) ![ sig_aspid ]) eqn:?;
     try (right; intros e' Htyp; invc Htyp; ff; fail).
     destruct e0, e0;
@@ -3052,23 +3116,26 @@ Fixpoint all_prov_sources (e_out : EvidenceT) : list EvidenceT :=
   | left_evt e' => e_out :: all_prov_sources e' 
   | right_evt e' => e_out :: all_prov_sources e' 
   (* NOTE: Since it must always preserve both sides, we can use just one *)
-  | split_evt el er => e_out :: all_prov_sources el 
+  | split_evt el er => e_out :: all_prov_sources el ++ all_prov_sources er
   | asp_evt p args e' => e_out :: all_prov_sources e' 
   end.
 
+(* 
 Lemma all_prov_source_EvidenceT_depth_le : forall e,
   (* Need a Succ because it must include *itself* too *)
   length (all_prov_sources e) <= S (EvidenceT_depth e).
 Proof.
   induction e; ff with l.
 Qed.
+*)
 
 (* Show that this list sufficiently captures all of the strong provenance cases *)
 Lemma in_all_prov_sources : forall G e e',
   str_provenance G e e' -> In e (all_prov_sources e').
 Proof.
   intros G e e' H. 
-  induction H; try (destruct e); ff.
+  induction H; try (destruct e); ff;
+  erewrite in_app_iff; ff.
 Qed.
 
 (* We made the problem into a finite search problem, and it can be then decided *)
@@ -3122,3 +3189,45 @@ Definition typeof_appr_invertible G p e_out
     : { e' & typeof G p e' (asp APPR) e_out } 
       + { forall e', typeof G p e' (asp APPR) e_out -> False } :=
   typeof_invertible G p e_out (asp APPR).
+
+Lemma in_none_lseq_vs_bseq : forall G e p t1 aid args e1 e2 n nv attrs,
+  (asp_types G) ![ aid ] = Some (ev_arrow (EXTEND (exist _ n nv) InNone) attrs) ->
+  typeof G p e (lseq t1 (asp (ASPC (asp_paramsC aid args)))) e1 ->
+  typeof G p e (bseq both_paths t1 (asp (ASPC (asp_paramsC aid args)))) e2 ->
+  forall n1 n2,
+    evt_stack_denotation G e1 n1 -> 
+    evt_stack_denotation G e2 n2 ->
+    n1 = n2.
+Proof.
+  intros.
+  repeat (match! goal with
+  | [ h : typeof _ _ _ _ _ |- _ ] =>
+    invc $h; ff; guard_goals_le 1
+  end).
+  eapply typeof_deterministic in X3 > [ | eapply X4 ]; ff.
+  repeat (match! goal with
+  | [ h : typeof _ _ _ _ _ |- _ ] =>
+    invc $h; ff; guard_goals_le 1
+  end).
+  repeat (match! goal with
+  | [ h : evt_stack_denotation _ _ _ |- _ ] =>
+    invc $h; ff; guard_goals_le 1
+  end).
+  repeat (match! goal with
+  | [ h1 : evt_stack_denotation ?_g ?_e ?_n1 , 
+      h2 : evt_stack_denotation ?_g ?_e ?_n2 |- _ ] =>
+    let h1v := Control.hyp h1 in
+    let h2v := Control.hyp h2 in
+    pp (evt_stack_denotation_deterministic _ _ _ _ $h1v $h2v); ff; clear $h1
+  end).
+Qed.
+
+Lemma lseq_nonassoc : forall G p t1 t2 t3 e e',
+  typeof G p e (lseq (lseq t1 t2) t3) e' ->
+  typeof G p e (lseq t1 (lseq t2 t3)) e'.
+Proof.
+  intros.
+  invc X.
+  invc X0.
+  eauto using typeof.
+Qed.

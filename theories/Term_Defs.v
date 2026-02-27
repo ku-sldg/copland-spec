@@ -207,6 +207,20 @@ Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext)
       F e1 /\ F e2
   end.
 
+Definition proc_ev_path_left (ep : ev_path) (e : EvidenceT) : EvidenceT :=
+  match ep with
+  | left_path => e
+  | right_path => mt_evt
+  | both_paths => e
+  end.
+
+Definition proc_ev_path_right (ep : ev_path) (e : EvidenceT) : EvidenceT :=
+  match ep with
+  | left_path => mt_evt
+  | right_path => e
+  | both_paths => e
+  end.
+
 Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) 
     : Result EvidenceT string :=
   match t with
@@ -215,14 +229,14 @@ Fixpoint eval `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (t :
   | lseq t1 t2 => 
       e1 <- eval G p e t1 ;;
       eval G p e1 t2
-  | bseq t1 t2 => 
-      e1 <- eval G p e t1 ;; 
-      e2 <- eval G p e t2 ;;
-      res (split_evt e1 e2)
-  | bpar t1 t2 => 
-      e1 <- eval G p e t1 ;; 
-      e2 <- eval G p e t2 ;;
-      res (split_evt e1 e2)
+  | bseq ep t1 t2 => 
+    e1 <- eval G p (proc_ev_path_left ep e) t1 ;;
+    e2 <- eval G p (proc_ev_path_right ep e) t2 ;;
+    res (split_evt e1 e2)
+  | bpar ep t1 t2 => 
+    e1 <- eval G p (proc_ev_path_left ep e) t1 ;;
+    e2 <- eval G p (proc_ev_path_right ep e) t2 ;;
+    res (split_evt e1 e2)
   end.
 
 (** * Events
@@ -310,15 +324,16 @@ Fixpoint events_size `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : Evidence
     e2 <- events_size G p e' t2 ;; (* next e2 events are done *)
     res (e1 + e2) (* +e1 for first evs, +e2 for second evs *)
   
-  | bseq t1 t2 => 
-    e1 <- events_size G p e t1 ;; (* left does e1 events *)
-    e2 <- events_size G p e t2 ;; (* right does e2 events *)
-    res (2 + e1 + e2) (* +1 for split; +e1,+e2 for sides, +1 for join *)
-  | bpar t1 t2 => 
-    e1 <- events_size G p e t1 ;; (* left does e1 events *)
-    e2 <- events_size G p e t2 ;; (* right does e2 events *)
+  | bseq ep t1 t2 => 
+    (* +1 for split, +e1 for left evs, +e2 for right evs, +1 for join *)
+    e1 <- events_size G p (proc_ev_path_left ep e) t1 ;; (* first e1 events are done *)
+    e2 <- events_size G p (proc_ev_path_right ep e) t2 ;; (* next e2 events are done *)
+    res (2 + e1 + e2) 
+  | bpar ep t1 t2 => 
     (* + 1 for split, +1 for thread_start; +e1,+e2 for sides, +1 for thread_join, + 1 for join *)
-    res (4 + e1 + e2) 
+    e1 <- events_size G p (proc_ev_path_left ep e) t1 ;; (* first e1 events are done *)
+    e2 <- events_size G p (proc_ev_path_right ep e) t2 ;;
+    res (4 + e1 + e2)
   end.
 
 

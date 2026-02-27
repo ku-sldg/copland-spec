@@ -122,6 +122,11 @@ Record GlobalContext `{DecEq ASP_ID} := {
 (** Pair of EvidenceT splitters that indicate routing EvidenceT to subterms 
     of branching phrases *)
 
+Inductive ev_path :=
+| left_path
+| right_path
+| both_paths.
+
 (** Main Copland phrase datatype definition.
         A term is either an atomic ASP (Attestation Service Provider), 
         a remote call (att), a sequence of terms with data a dependency (lseq),
@@ -130,8 +135,8 @@ Inductive Term :=
 | asp: ASP -> Term
 | att: Plc -> Term -> Term
 | lseq: Term -> Term -> Term
-| bseq: Term -> Term -> Term
-| bpar: Term -> Term -> Term.
+| bseq: ev_path -> Term -> Term -> Term
+| bpar: ev_path -> Term -> Term -> Term.
 
 Definition EvidenceT_depth : EvidenceT -> nat :=
   fix F e :=

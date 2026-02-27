@@ -10,15 +10,17 @@ Global Instance DecEq_ASP `{DecEq ASP_PARAMS, DecEq Plc}: DecEq ASP.
 build_deq.
 Defined.
 
-Global Instance DecEq_Term `{DecEq Plc, DecEq ASP} : DecEq Term.
+Global Instance DecEq_ev_path : DecEq ev_path.
+build_deq.
+Defined.
+
+Global Instance DecEq_Term `{DecEq Plc, DecEq ASP, DecEq ev_path} : DecEq Term.
 ref (Build_DecEq _ _).
 intros x; induction x;
 intros y; destruct y; ff;
-try (decdec_eq ()).
+try (decdec_eq ());
+try (destruct (IHx1 y1), (IHx2 y2); ff).
 - destruct (IHx y); ff.
-- destruct (IHx1 y1), (IHx2 y2); ff.
-- destruct (IHx1 y1), (IHx2 y2); ff.
-- destruct (IHx1 y1), (IHx2 y2); ff.
 Defined.
 
 Global Instance DecEq_EvidenceT `{DecEq N_ID, DecEq Plc, DecEq ASP_PARAMS} : DecEq EvidenceT.
@@ -508,17 +510,39 @@ try (unfold ASP_from_JSON, ASP_to_JSON, from_JSON_gen; ff;
   unfold ASP_PARAMS_from_JSON in *; ff with u; jsonifiable_hammer.
 Defined.
 
-Fixpoint Term_to_JSON `{Jsonifiable ASP} (t : Term) : JSON := 
+Global Instance Jsonifiable_ev_path : Jsonifiable ev_path.
+eapply Build_Jsonifiable with
+  (to_JSON := fun p =>
+    match p with
+    | left_path => JSON_String left_path_name_constant
+    | right_path => JSON_String right_path_name_constant
+    | both_paths => JSON_String both_paths_name_constant
+    end)
+  (from_JSON := fun js =>
+    match js with
+    | JSON_String s =>
+      if (String.eqb s left_path_name_constant)
+      then res left_path
+      else if (String.eqb s right_path_name_constant)
+      then res right_path
+      else if (String.eqb s both_paths_name_constant)
+      then res both_paths
+      else err err_str_json_unrecognized_constructor
+    | _ => err err_str_json_no_constructor_name_string
+    end); jsonifiable_hammer.
+Defined.
+
+Fixpoint Term_to_JSON `{Jsonifiable ASP, Jsonifiable ev_path} (t : Term) : JSON := 
   match t with
   | asp a => constructor_to_JSON STR_TERM asp_name_constant [(to_JSON a)]
   | att p t' => constructor_to_JSON STR_TERM att_name_constant 
       [(JSON_String (to_string p)); (Term_to_JSON t')]
   | lseq t1 t2 => constructor_to_JSON STR_TERM lseq_name_constant
       [(Term_to_JSON t1); (Term_to_JSON t2)]
-  | bseq t1 t2 => constructor_to_JSON STR_TERM bseq_name_constant
-      [(Term_to_JSON t1); (Term_to_JSON t2)]
-  | bpar t1 t2 => constructor_to_JSON STR_TERM bpar_name_constant
-      [(Term_to_JSON t1); (Term_to_JSON t2)]
+  | bseq ep t1 t2 => constructor_to_JSON STR_TERM bseq_name_constant
+      [(to_JSON ep); (Term_to_JSON t1); (Term_to_JSON t2)]
+  | bpar ep t1 t2 => constructor_to_JSON STR_TERM bpar_name_constant
+      [(to_JSON ep); (Term_to_JSON t1); (Term_to_JSON t2)]
   end.
 
 Fixpoint Term_from_JSON `{Jsonifiable ASP} (js : JSON) : Result Term string :=
@@ -558,22 +582,24 @@ Fixpoint Term_from_JSON `{Jsonifiable ASP} (js : JSON) : Result Term string :=
       then match js with
         | JSON_Object [
             _;
-            (_, JSON_Array [ term1; term2 ])
+            (_, JSON_Array [ ev; term1; term2 ])
           ] =>
+            ep_val <- from_JSON ev ;;
             term1_val <- (Term_from_JSON term1) ;;
             term2_val <- (Term_from_JSON term2) ;;
-            res (bseq term1_val term2_val)
+            res (bseq ep_val term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
       else if (String.eqb cons_name bpar_name_constant) 
       then match js with
         | JSON_Object [
             _;
-            (_, JSON_Array [ term1; term2 ])
+            (_, JSON_Array [ ev; term1; term2 ])
          ] =>
+            ep_val <- from_JSON ev ;;
             term1_val <- (Term_from_JSON term1) ;;
             term2_val <- (Term_from_JSON term2) ;;
-            res (bpar term1_val term2_val)
+            res (bpar ep_val term1_val term2_val)
         | _ => err err_str_json_parsing_failure_wrong_number_args
         end
       else err err_str_json_invalid_constructor_name

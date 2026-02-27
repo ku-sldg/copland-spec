@@ -32,20 +32,20 @@ Inductive events: GlobalContext -> CopPhrase -> nat -> list Ev -> Prop :=
     events G (cop_phrase p e' t2) (i + List.length evs1) evs2 ->
     events G (cop_phrase p e (lseq t1 t2)) i (evs1 ++ evs2)
 
-| evts_bseq: forall G t1 t2 p e evs1 evs2 i i',
-    events G (cop_phrase p e t1) (i + 1) evs1 ->
-    events G (cop_phrase p e t2) (i + 1 + List.length evs1) evs2 ->
+| evts_bseq: forall G t1 t2 p e evs1 evs2 i i' ep,
+    events G (cop_phrase p (proc_ev_path_left ep e) t1) (i + 1) evs1 ->
+    events G (cop_phrase p (proc_ev_path_right ep e) t2) (i + 1 + List.length evs1) evs2 ->
     i' = i + 1 + List.length evs1 + List.length evs2 ->
-    events G (cop_phrase p e (bseq t1 t2)) i
+    events G (cop_phrase p e (bseq ep t1 t2)) i
       ([split i p] ++ evs1 ++ evs2 ++ [join i' p])
 
-| evts_bpar: forall G t1 t2 p e evs1 evs2 i i' i'' loc,
-    events G (cop_phrase p e t1) (i + 2) evs1 ->
-    events G (cop_phrase p e t2) (i + 2 + List.length evs1) evs2 ->
+| evts_bpar: forall G t1 t2 p e evs1 evs2 i i' i'' loc ep,
+    events G (cop_phrase p (proc_ev_path_left ep e) t1) (i + 2) evs1 ->
+    events G (cop_phrase p (proc_ev_path_right ep e) t2) (i + 2 + List.length evs1) evs2 ->
     loc = i + 1 ->
     i' = i + 2 + List.length evs1 + List.length evs2 ->
     i'' = i + 2 + List.length evs1 + List.length evs2 + 1 ->
-    events G (cop_phrase p e (bpar t1 t2)) i
+    events G (cop_phrase p e (bpar ep t1 t2)) i
       ([split i p] ++ [cvm_thread_start loc loc p e t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end i' loc] ++ [join i'' p]).
 
@@ -63,14 +63,14 @@ Fixpoint events_fix (G : GlobalContext) (p : Plc) (e : EvidenceT) (t : Term) (i 
     e' <- eval G p e t1 ;;
     evs2 <- events_fix G p e' t2 (i + List.length evs1) ;;
     res (evs1 ++ evs2)
-  | bseq t1 t2 => 
-    evs1 <- events_fix G p e t1 (i + 1) ;;
-    evs2 <- events_fix G p e t2 (i + 1 + List.length evs1) ;;
+  | bseq ep t1 t2 => 
+    evs1 <- events_fix G p (proc_ev_path_left ep e) t1 (i + 1) ;;
+    evs2 <- events_fix G p (proc_ev_path_right ep e) t2 (i + 1 + List.length evs1) ;;
 
     res ([split i p] ++ evs1 ++ evs2 ++ [join (i + 1 + List.length evs1 + List.length evs2) p])
-  | bpar t1 t2 =>
-    evs1 <- events_fix G p e t1 (i + 2) ;;
-    evs2 <- events_fix G p e t2 (i + 2 + List.length evs1) ;;
+  | bpar ep t1 t2 =>
+    evs1 <- events_fix G p (proc_ev_path_left ep e) t1 (i + 2) ;;
+    evs2 <- events_fix G p (proc_ev_path_right ep e) t2 (i + 2 + List.length evs1) ;;
     let loc := i + 1 in
     res ([split i p] ++ [cvm_thread_start loc loc p e t2] ++ evs1 ++ 
       evs2 ++ [cvm_thread_end (i + 2 + List.length evs1 + List.length evs2) loc] ++ 
