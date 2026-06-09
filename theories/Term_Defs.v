@@ -14,7 +14,8 @@ All Rights Reserved.
 This proof script is free software: you can redistribute it and/or
 modify it under the terms of the BSD License as published by the
 University of California.  See license.txt for details. *)
-From CoplandSpec Require Export Term_Defs_Core Term_Defs_Core_Typeclasses Built_In_Params.
+From CoplandSpec Require Export Term_Defs_Core Term_Defs_Core_Typeclasses Built_In_Params Normalize.
+From Equations Require Import Equations.
 From RocqCandy Require Import All.
 Import ResultNotation.
 
@@ -28,10 +29,17 @@ Definition equiv_EvidenceT `{DecEq ASP_ID, DecEq nat} (G : GlobalContext) (e1 e2
 Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) 
     : EvidenceT -> EvidenceT -> Result EvidenceT string :=
   fix F (e ev_out : EvidenceT) : Result EvidenceT string :=
-  if (equiv_EvidenceT G e ev_out)
-  then (match e with
-  (* Simple case, we do nothing on appraise of mt *)
-  | mt_evt => res mt_evt
+  (* The defensive [equiv_EvidenceT] size guard has been removed: the relational
+     [tc_appr_*] rules carry no such check, and for well-typed inputs the guard
+     always passes (so [appr_procedure] is unchanged on them). Removing it keeps
+     the executable appraisal faithful to [tc_appr_*]. *)
+  match e with
+  (* Simple case, we do nothing on appraise of mt. We return [ev_out] (not the
+     literal [mt_evt]) so this case threads its accumulator consistently with
+     every other case; this keeps [appr_procedure] in exact agreement with the
+     relational [tc_appr_mt] rule (whose output is the input evidence) even when
+     [ev_out] is a projection that merely normalizes to [mt_evt]. *)
+  | mt_evt => res ev_out
   (* Simple as well, we utilize primitive nonce checking procedure *)
   | nonce_evt n => res (asp_evt p check_nonce_params ev_out)
   (* In this case, it is a bit more complex.
@@ -93,12 +101,15 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
     e1' <- F e1 (left_evt ev_out) ;;
     e2' <- F e2 (right_evt ev_out) ;;
     res (split_evt e1' e2')
-  end)
-  else err err_str_appr_compute_evt_neq.
+  end.
 
-Definition appr_procedure `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
+(** Appraise [e] by recursing over its canonical form [normalize_ev G e]
+    (so the structural recursion stays canonical and mirrors the relational
+    [tc_appr_*] rules exactly), while threading the *raw* [e] as the output
+    accumulator (so outputs are built from the raw input, as the rules do). *)
+Definition appr_procedure `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT)
     : Result EvidenceT string :=
-  appr_procedure' G p e e.
+  appr_procedure' G p (normalize_ev G e) e.
 
 Module Testing.
 
@@ -121,8 +132,12 @@ Module Testing.
         (asp_evt p (enc_params p) (nonce_evt 1)))
     ).
   Proof.
+    intros G p attrs H1 H2 H3.
     unfold appr_procedure.
-    ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
+    assert (normalize_ev G (asp_evt p (enc_params p) (nonce_evt 1))
+            = asp_evt p (enc_params p) (nonce_evt 1)) as Hn.
+    { unfold enc_params; ltac1:(simp normalize_ev); reflexivity. }
+    rewrite Hn; ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
   Qed.
 
   Example appr_procedure_ex3 : forall G p,
@@ -133,7 +148,7 @@ Module Testing.
         (asp_evt p check_nonce_params (right_evt (split_evt (nonce_evt 1) (nonce_evt 2))))
     ).
   Proof.
-    reflexivity.
+    unfold appr_procedure; ltac1:(simp normalize_ev); reflexivity.
   Qed.
 
   Example appr_procedure_ex4 : forall G p attrs,
@@ -157,9 +172,12 @@ Module Testing.
       )
     ).
   Proof.
-    intros;
-    unfold appr_procedure, equiv_EvidenceT in *;
-    ff; unfold equiv_EvidenceT in *; ff.
+    intros G p attrs H1 H2 H3.
+    unfold appr_procedure.
+    assert (normalize_ev G (asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2)))
+            = asp_evt p (enc_params p) (split_evt (nonce_evt 1) (nonce_evt 2))) as Hn.
+    { unfold enc_params; ltac1:(simp normalize_ev); reflexivity. }
+    rewrite Hn; unfold equiv_EvidenceT in *; ff; unfold equiv_EvidenceT in *; ff.
   Qed.
 End Testing.
 

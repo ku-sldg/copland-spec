@@ -39,45 +39,10 @@ Proof.
   induction H; simpl; ff with l.
 Qed.
 
-Equations? normalize_ev (G : GlobalContext) (e : EvidenceT) 
-    : EvidenceT by wf (EvidenceT_depth e) :=
-  normalize_ev G mt_evt := mt_evt;
-  normalize_ev G (nonce_evt n) := nonce_evt n;
-  normalize_ev G (left_evt e') :=
-    match normalize_ev G e' with
-    | split_evt l r => l
-    | e'res => left_evt e'res
-    end;
-  normalize_ev G (right_evt e') :=
-    match normalize_ev G e' with
-    | split_evt l r => r
-    | e'res => right_evt e'res
-    end;
-  normalize_ev G (split_evt l r) :=
-    split_evt (normalize_ev G l) (normalize_ev G r);
-  normalize_ev G (asp_evt p (asp_paramsC asp_id args) e') :=
-    match normalize_ev G e' with
-    | asp_evt p' (asp_paramsC asp_id' args') e'' =>
-        match ((asp_types G) ![ asp_id ]) with
-        | Some (ev_arrow UNWRAP attrs1) =>
-            match ((asp_types G) ![ asp_id' ]) with
-            | Some (ev_arrow (WRAP (exist _ n nlt)) attrs2) =>
-                match ((asp_comps G) ![ asp_id' ]) with
-                | Some test_unwrapping_id =>
-                    if (DecEq.dec_eq test_unwrapping_id asp_id) 
-                    then e''
-                    else asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
-                | None => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
-                end
-            | _ => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
-            end
-        | _ => asp_evt p (asp_paramsC asp_id args) (asp_evt p' (asp_paramsC asp_id' args') e'')
-        end
-    | e'res => asp_evt p (asp_paramsC asp_id args) e'res
-    end.
-- ff with l.
-- ff with l.
-Defined.
+(* [normalize_ev] has been moved upstream to Normalize.v (so the reference
+   semantics' [appr_procedure] can use it); it is in scope here via the
+   [Term_Defs] -> [Normalize] export chain. Its supporting lemmas and custom
+   induction principles remain below. *)
 
 Lemma proc_left_normalized : forall G e e' ep,
   normalize_ev G e = normalize_ev G e' ->
@@ -99,9 +64,12 @@ Theorem normalize_ev_measure_decrease : forall G e e',
   EvidenceT_depth e' <= EvidenceT_depth e.
 Proof.
   intros.
-  ltac1:( funelim (normalize_ev G e); simp normalize_ev in * ); ff with l;
-  try (pp (H _ eq_refl); ff with l; fail).
-  pp (H _ eq_refl); pp (H0 _ eq_refl); ff with l.
+  ltac1:( funelim (normalize_ev G e); simp normalize_ev in * );
+  ff with l;
+  ltac1:(repeat match goal with
+    | [ IH : forall y, _ = y -> _ |- _ ] => specialize (IH _ eq_refl)
+    end);
+  ff with l.
 Qed.
 
 (* --- Helper Definitions to keep the Type signature clean --- *)
