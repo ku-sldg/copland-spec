@@ -104,30 +104,27 @@ Qed.
     projection or stray top-level [UNWRAP] is reachable in a well-typed APPR
     derivation, so those executable branches never arise. *)
 
-(** *** Empirical validation of the correction
+(** *** Empirical validation of the canonical-argument discipline
 
-    Concrete witness that the correction changes behavior on non-canonical
-    evidence and aligns it with [tc_appr_*]. Take [e = SIG] (an [EXTEND]) over a
-    projection [left_evt (split (nonce 1) (nonce 2))] that normalizes to
-    [nonce 1]. The OLD raw recursion appraises the *raw projection*; the
-    corrected [appr_procedure] appraises the *canonical* [nonce 1] -- which is
-    exactly the output [tc_appr_extend] assigns (its right premise appraises the
-    inner of [normalize_ev G e], i.e. [nonce 1]). Both outputs share the same
-    left component and agree up to [normalize_ev]. *)
+    [appr_procedure'] recurses over the *canonical* structural argument only.
+    Take [e = SIG] (an [EXTEND]) over a projection
+    [left_evt (split (nonce 1) (nonce 2))] that normalizes to [nonce 1]: fed the
+    raw projection directly, the structural recursion is stuck and errs, while
+    the normalizing wrapper [appr_procedure] appraises the canonical [nonce 1]
+    -- exactly the output [tc_appr_extend] assigns (its right premise appraises
+    the inner of [normalize_ev G e]). *)
 Module CorrectionValidation.
   Example correction_matters : forall (G : GlobalContext) p appr_sig_id sig_attrs nlt,
     (asp_types G) ![ sig_aspid ] = Some (ev_arrow (EXTEND (exist _ 1 nlt) InAll) sig_attrs) ->
     (asp_comps G) ![ sig_aspid ] = Some appr_sig_id ->
-    (* OLD raw-recursion appraisal: inner built from the RAW projection *)
+    (* raw (non-canonical) structural argument: the stuck projection errs *)
     appr_procedure' G p
       (asp_evt p sig_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))))
       (asp_evt p sig_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))))
-    = res (split_evt
-             (asp_evt p (asp_paramsC appr_sig_id sig_aspargs)
-                (asp_evt p sig_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2)))))
-             (asp_evt p check_nonce_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2)))))
+    = err err_str_no_evidence_below
     /\
-    (* CORRECTED appraisal: inner built from the CANONICAL nonce (matches tc_appr_extend) *)
+    (* the normalizing [appr_procedure]: inner built from the CANONICAL nonce
+       (matches tc_appr_extend) *)
     appr_procedure G p
       (asp_evt p sig_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))))
     = res (split_evt
@@ -137,13 +134,17 @@ Module CorrectionValidation.
   Proof.
     intros G p appr_sig_id sig_attrs nlt Ht Hc.
     split.
-    - unfold sig_params; ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
+    - unfold sig_params.
+      simpl.
+      rewrite Ht.
+      rewrite Hc.
+      reflexivity.
     - unfold appr_procedure.
       assert (normalize_ev G (asp_evt p sig_params (left_evt (split_evt (nonce_evt 1) (nonce_evt 2))))
               = asp_evt p sig_params (nonce_evt 1)) as Hn.
       { unfold sig_params; ltac1:(simp normalize_ev); reflexivity. }
       rewrite Hn; unfold sig_params;
-      ff with a, r, u, l; unfold equiv_EvidenceT in *; ff.
+      ff with a, r, u, l.
   Qed.
 End CorrectionValidation.
 
@@ -151,24 +152,6 @@ End CorrectionValidation.
 
     Each names a single computational property of [normalize_ev] and is proved
     by Equations simplification ([simp normalize_ev]) plus explicit rewriting. *)
-
-(** A normalized [asp_evt] whose head ASP is not [UNWRAP] keeps its head and
-    normalizes only its argument (no WRAP/UNWRAP cancellation fires). *)
-Lemma normalize_asp_keep : forall G p aid args e fwd attrs,
-  (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) ->
-  fwd <> UNWRAP ->
-  normalize_ev G (asp_evt p (asp_paramsC aid args) e)
-    = asp_evt p (asp_paramsC aid args) (normalize_ev G e).
-Proof.
-  intros G p aid args e fwd attrs Htype Hfwd.
-  ltac1:(simp normalize_ev).
-  destruct (normalize_ev G e) eqn:Hne; try reflexivity.
-  (* only the inner-[asp_evt] case can trigger cancellation *)
-  ltac1:(destruct a).
-  rewrite Htype.
-  destruct fwd; try reflexivity.
-  ltac1:(exfalso; apply Hfwd; reflexivity).
-Qed.
 
 (** The immediate argument of a canonical non-[UNWRAP] [asp_evt] is canonical. *)
 Lemma canon_asp_inner : forall G e p' aid args e' fwd attrs,
@@ -400,11 +383,11 @@ Qed.
     guarantee this -- it is permissive, building e.g. a [SIG] node without
     checking [sig_aspid]'s type -- so this is genuinely a property of [typeof],
     not of [eval].) For the [APPR] fragment the output size additionally needs
-    [et_size]'s invariance under [normalize_ev] (the executable [et_size] recurses
-    via [apply_to_evidence_below] while the typing-side size [evt_stack_denotation]
-    recurses via [normalize_ev]); bridging those is the remaining self-contained
-    development, so we scope these results to [appr_free] terms -- exactly as the
-    soundness bridge [typeof_sound_wrt_eval_appr_free] is. *)
+    relating [et_size] to the typing-side size [evt_stack_denotation] (both now
+    recurse over the [normalize_ev] canonical form); bridging those is the
+    remaining self-contained development, so we scope these results to
+    [appr_free] terms -- exactly as the soundness bridge
+    [typeof_sound_wrt_eval_appr_free] is. *)
 
 (** The branch projections feed an input of computable size to each sub-term:
     [proc_ev_path_*] yields either the original evidence or [mt_evt]. *)
@@ -412,15 +395,18 @@ Lemma et_size_proc_left_defined : forall G ep e sz,
   et_size G e = res sz ->
   { s & et_size G (proc_ev_path_left ep e) = res s }.
 Proof.
-  intros G ep e sz H; destruct ep; cbn; eexists; cbn; eauto.
+  intros G ep e sz H; destruct ep; cbn [proc_ev_path_left]; eexists;
+  first [ exact H | unfold et_size; ltac1:(simp normalize_ev); reflexivity ].
 Qed.
 
 Lemma et_size_proc_right_defined : forall G ep e sz,
   et_size G e = res sz ->
   { s & et_size G (proc_ev_path_right ep e) = res s }.
 Proof.
-  intros G ep e sz H; destruct ep; cbn; eexists; cbn; eauto.
+  intros G ep e sz H; destruct ep; cbn [proc_ev_path_right]; eexists;
+  first [ exact H | unfold et_size; ltac1:(simp normalize_ev); reflexivity ].
 Qed.
+
 
 (** Core: a well-typed [appr_free] phrase keeps [et_size] defined -- if the input
     type has a computable size, so does the output type. By induction on the
@@ -436,41 +422,24 @@ Proof.
   intros G p e t e' sz Hf Htype. revert sz. revert Hf.
   induction Htype; intros Hf sz Hsz; cbn in Hf; try (exfalso; exact Hf).
   - (* tc_sig : SIG extends by 1 *)
-    unfold sig_params; cbn;
-    match! goal with 
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => 
-      let hv := Control.hyp h in rewrite $hv
-    end; cbn; rewrite Hsz; cbn; eexists; reflexivity.
+    eexists; unfold sig_params;
+    erewrite et_size_asp_extend > [ rewrite Hsz; reflexivity | eassumption ].
   - (* tc_hsh : HSH replaces, fixed size *)
-    unfold hsh_params; cbn;
-    match! goal with
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => let hv := Control.hyp h in rewrite $hv
-    end; cbn; eexists; reflexivity.
+    eexists; unfold hsh_params;
+    erewrite et_size_asp_replace > [ reflexivity | eassumption ].
   - (* tc_enc : ENC wraps, fixed size *)
-    unfold enc_params; cbn;
-    match! goal with
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => let hv := Control.hyp h in rewrite $hv
-    end; cbn; eexists; reflexivity.
+    eexists; unfold enc_params;
+    erewrite et_size_asp_wrap > [ reflexivity | eassumption ].
   - (* tc_extend_in_none : EXTEND by n *)
-    cbn;
-    match! goal with
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => let hv := Control.hyp h in rewrite $hv
-    end; cbn; rewrite Hsz; cbn; eexists; reflexivity.
+    eexists; erewrite et_size_asp_extend > [ rewrite Hsz; reflexivity | eassumption ].
   - (* tc_extend_in_all : EXTEND by n_ext *)
-    cbn;
-    match! goal with
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => let hv := Control.hyp h in rewrite $hv
-    end; cbn; rewrite Hsz; cbn; eexists; reflexivity.
-  - (* tc_in_all : forward [fwd] is one of REPLACE / WRAP / EXTEND (never UNWRAP) *)
-    cbn;
-    match! goal with
-    | [ h : (asp_types _) ![ _ ] = Some _ |- _ ] => let hv := Control.hyp h in rewrite $hv
-    end; cbn;
+    eexists; erewrite et_size_asp_extend > [ rewrite Hsz; reflexivity | eassumption ].
+  - (* tc_in_all : forward [fwd] is REPLACE / WRAP / EXTEND (never UNWRAP) *)
     destruct fwd as [ [nr ltr] | [nw ltw] | | [ne lte] isig ]
-    > [ cbn; eexists; reflexivity
-      | cbn; eexists; reflexivity
+    > [ eexists; erewrite et_size_asp_replace > [ reflexivity | eassumption ]
+      | eexists; erewrite et_size_asp_wrap > [ reflexivity | eassumption ]
       | congruence   (* UNWRAP excluded by the [fwd <> UNWRAP] premise *)
-      | cbn; rewrite Hsz; cbn; eexists; reflexivity ].
+      | eexists; erewrite et_size_asp_extend > [ rewrite Hsz; reflexivity | eassumption ] ].
   - (* tc_att : evaluation at a remote place, same input/output types *)
     eapply IHHtype > [ exact Hf | exact Hsz ].
   - (* tc_lseq : sequence -- thread the intermediate size through both IHs *)
@@ -483,14 +452,14 @@ Proof.
     destruct (et_size_proc_right_defined G ep e sz Hsz) as [sr Hsr];
     destruct (IHHtype1 Hf1 sl Hsl) as [n1 Hn1];
     destruct (IHHtype2 Hf2 sr Hsr) as [n2 Hn2];
-    cbn; rewrite Hn1; rewrite Hn2; cbn; eexists; reflexivity.
+    eexists; rewrite et_size_split; rewrite Hn1; rewrite Hn2; reflexivity.
   - (* tc_bpar : parallel branch -- identical evidence-size reasoning to bseq *)
     destruct Hf as [Hf1 Hf2];
     destruct (et_size_proc_left_defined G ep e sz Hsz) as [sl Hsl];
     destruct (et_size_proc_right_defined G ep e sz Hsz) as [sr Hsr];
     destruct (IHHtype1 Hf1 sl Hsl) as [n1 Hn1];
     destruct (IHHtype2 Hf2 sr Hsr) as [n2 Hn2];
-    cbn; rewrite Hn1; rewrite Hn2; cbn; eexists; reflexivity.
+    eexists; rewrite et_size_split; rewrite Hn1; rewrite Hn2; reflexivity.
 Qed.
 
 (** [wf_Evidence] pins the raw length to the type's [et_size] (extracted in [Prop]

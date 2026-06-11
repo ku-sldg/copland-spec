@@ -77,13 +77,13 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           end
           (* let ev_out' := asp_evt p dual_par ev_out in
           F e' ev_out' *)
-        | UNWRAP => 
-          (* The appraisal of something that is unwrapped is just whatever is below its wrap *)
-          (* NOTE: In practice this should nearly never happen as the appraisal procedure itself should be doing the UNWRAP and subsequent functions *)
-          r <- apply_to_evidence_below G (fun e => F e ev_out) [Trail_UNWRAP asp_id] e' ;;
-          r
+        | UNWRAP =>
+          (* The recursion is over the *canonical* evidence form, where every
+             matched WRAP/UNWRAP pair has been cancelled by [normalize_ev]; a
+             surviving UNWRAP head is a stuck unwrap with nothing to appraise. *)
+          err err_str_asp_at_bottom_not_wrap
 
-        | EXTEND _ _ => 
+        | EXTEND _ _ =>
           (* appraisal of an extend involves doing the appraisal of the extension
           and then separately the appraisal of the underlying *)
           ev_under <- F e' e' ;;
@@ -91,12 +91,12 @@ Definition appr_procedure' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
         end
       end
     end
-  | left_evt e' => 
-    r <- apply_to_evidence_below G (fun e' => F e' ev_out) [Trail_LEFT] e' ;; r
-  | right_evt e' => 
-    r <- apply_to_evidence_below G (fun e' => F e' ev_out) [Trail_RIGHT] e' ;; r
+  (* As for UNWRAP: [normalize_ev] resolves projections of splits, so canonical
+     [left_evt]/[right_evt] are stuck projections with no evidence below. *)
+  | left_evt _ => err err_str_no_evidence_below
+  | right_evt _ => err err_str_no_evidence_below
 
-  | split_evt e1 e2 => 
+  | split_evt e1 e2 =>
     (* we now e ~ ev_out here, so we can continue on it *)
     e1' <- F e1 (left_evt ev_out) ;;
     e2' <- F e2 (right_evt ev_out) ;;
@@ -198,33 +198,6 @@ Definition eval_asp `{DecEq ASP_ID} (G : GlobalContext) (a : ASP)
 (** EvidenceT Type denotational reference semantics.
     The EvidenceT associated with a term, a place, and some initial EvidenceT. *)
 
-Definition asp_comp_map_supports_ev `{DecEq ASP_ID} (G : GlobalContext) 
-    : EvidenceT -> Prop  :=
-  fix F (e : EvidenceT) : Prop :=
-  match e with
-  | mt_evt => True
-  | nonce_evt n => True
-  | asp_evt asp_top_plc ps e' => 
-    let '(asp_paramsC asp_id args) := ps in
-    lookup asp_id (asp_comps G) <> None /\
-    (match ((asp_types G) ![ asp_id ]) with
-    | None => False
-    | Some (ev_arrow fwd attrs) =>
-      match fwd with
-      | REPLACE _ => True
-      | WRAP _ => F e'
-      | UNWRAP => F e'
-      | EXTEND _ _ => F e'
-      end
-    end)
-  | left_evt e' => 
-    apply_to_evidence_below G F [Trail_LEFT] e' <?> False
-  | right_evt e' => 
-    apply_to_evidence_below G F [Trail_RIGHT] e' <?> False
-  | split_evt e1 e2 => 
-      F e1 /\ F e2
-  end.
-
 Definition proc_ev_path_left (ep : ev_path) (e : EvidenceT) : EvidenceT :=
   match ep with
   | left_path => e
@@ -299,23 +272,18 @@ Definition appr_events_size `{DecEq ASP_ID} (G : GlobalContext)
         (* we need the size of recursing *)
         n <- F e' ;;
         res (1 + n) (* 1 for the unwrap, then n for rec case *)
-      | UNWRAP => 
-        (* we are just doing the recursion *)
-        r <- apply_to_evidence_below G F [Trail_UNWRAP asp_id] e' ;; 
-        r
-      | EXTEND _ _ => 
+      | UNWRAP =>
+        (* stuck unwrap: cannot arise canonically (cf. [appr_procedure']) *)
+        err err_str_asp_at_bottom_not_wrap
+      | EXTEND _ _ =>
         (* we need the size of recursing *)
         n <- F e' ;;
         res (3 + n) (* split (1), extend dual (1), rec case (n), join (1) *)
       end
     end
-  | left_evt e' => 
-    r <- apply_to_evidence_below G F [Trail_LEFT] e' ;; 
-    r
-
-  | right_evt e' => 
-    r <- apply_to_evidence_below G F [Trail_RIGHT] e' ;; 
-    r
+  (* stuck projections: cannot arise canonically (cf. [appr_procedure']) *)
+  | left_evt _ => err err_str_no_evidence_below
+  | right_evt _ => err err_str_no_evidence_below
 
   | split_evt e1 e2 =>
     s1 <- F e1 ;;
@@ -329,7 +297,7 @@ Fixpoint events_size `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : Evidence
   match t with
   | asp a => 
     match a with
-    | APPR => appr_events_size G e (* appraisal does # of events based on ev type *)
+    | APPR => appr_events_size G (normalize_ev G e) (* # events over the canonical (appraised) ev type *)
     | _ => res 1 (* all other ASPs do 1 event for meas *)
     end
   | att p' t1 => 
@@ -394,9 +362,8 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
           ev' <- F e' new_ev_out (i + 1) ;;
           res (unwrap_ev :: ev')
 
-        | UNWRAP => (* we are already unwrapped, just do below stuff *)
-          r <- apply_to_evidence_below G (fun e' => F e' ev_out i) [Trail_UNWRAP asp_id] e' ;;
-          r
+        | UNWRAP => (* stuck unwrap: cannot arise canonically (cf. [appr_procedure']) *)
+          err err_str_asp_at_bottom_not_wrap
 
         | EXTEND _ _ => (* do the extend dual *)
           (* ev_out does not change for the umeas event,
@@ -410,15 +377,11 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
       end
     end
 
-  | left_evt e' => 
-    (* we only do stuff on the left, its a pass through *)
-    r <- apply_to_evidence_below G (fun e' => F e' ev_out i) [Trail_LEFT] e' ;; r
+  (* stuck projections: cannot arise canonically (cf. [appr_procedure']) *)
+  | left_evt _ => err err_str_no_evidence_below
+  | right_evt _ => err err_str_no_evidence_below
 
-  | right_evt e' =>
-    (* we only do stuff on the right, its a pass through *)
-    r <- apply_to_evidence_below G (fun e' => F e' ev_out i) [Trail_RIGHT] e' ;; r
-
-  | split_evt e1 e2 => 
+  | split_evt e1 e2 =>
     if (equiv_EvidenceT G e1 (left_evt ev_out))
     then if (equiv_EvidenceT G e2 (right_evt ev_out))
     then
@@ -431,97 +394,86 @@ Definition appr_events' `{DecEq ASP_ID} (G : GlobalContext) (p : Plc)
     else err err_str_appr_compute_evt_neq
   end.
 
-Ltac2 esp_same () :=
-  match! goal with
-  | [ h1 : Evidence_Subterm_path _ _ _ _,
-      h2 : Evidence_Subterm_path _ _ _ _ |- _ ] =>
-    let h2 := Control.hyp h2 in
-    eapply Evidence_Subterm_path_same in $h1 >
-    [ | exact $h2 ]; subst
-  end.
-
-Ltac2 Notation "ateb_unpack" 
-  h(ident) :=
-  let h' := Control.hyp h in
-  match! Constr.type h' with
-  | apply_to_evidence_below _ ?_f _ _ = res _ =>
-    let hesp1 := fresh_hyp "Hesp" in
-    let hf1 := fresh_hyp "Hf" in
-    eapply apply_to_evidence_below_res_spec in $h as [? [$hesp1 $hf1]]
-  end.
-
-Ltac2 Notation "unpack_atebs" :=
-  repeat (
-    match! goal with
-    | [ h : apply_to_evidence_below _ ?_f _ _ = res _ |- _ ] =>
-        ateb_unpack $h
-    end).
-
-Ltac2 Notation "ateb_diff" :=
-  match! goal with
-  | [ h1 : apply_to_evidence_below _ ?_f1 _ _ = res _,
-      h2 : apply_to_evidence_below _ ?f2 _ _ = err _ |- _ ] =>
-    let h' := fresh_hyp "H" in
-    eapply apply_to_evidence_below_res with (fn2 := $f2) in $h1 as $h';
-    let h' := Control.hyp h' in
-    let h'' := fresh_hyp "H" in
-    destruct $h' as [? $h''];
-    let h'' := Control.hyp h'' in
-    rewrite $h'' in $h2; 
-    subst; clear h''; try congruence
-  end.
-
-Ltac2 Notation "ateb_errs_same" := 
-  match! goal with
-  | [ h1 : apply_to_evidence_below _ ?_f1 _ _ = err ?_r1,
-      h2 : apply_to_evidence_below _ ?_f2 _ _ = err ?_r2 |- _ ] =>
-    let h2 := Control.hyp h2 in
-    eapply apply_to_evidence_below_errs_det in $h1 >
-    [ | exact $h2 ]; subst
-  end.
-
-Ltac2 Notation "ateb_same" :=
-  match! goal with
-  | [ h1 : apply_to_evidence_below _ ?_f1 _ _ = res ?_r1,
-      h2 : apply_to_evidence_below _ ?_f2 _ _ = res ?_r2 |- _ ] =>
-    let hesp1 := fresh_hyp "Hesp" in
-    let hf1 := fresh_hyp "Hf" in
-    eapply apply_to_evidence_below_res_spec in $h1 as [? [$hesp1 $hf1]];
-    let hesp2 := fresh_hyp "Hesp" in
-    let hf2 := fresh_hyp "Hf" in
-    eapply apply_to_evidence_below_res_spec in $h2 as [? [$hesp2 $hf2]];
-    let hesp2 := Control.hyp hesp2 in
-    eapply Evidence_Subterm_path_same in $hesp1 >
-    [ | exact $hesp2]; subst
-  end.
-
-Ltac2 Notation "ateb_simp" :=
-  try (ateb_same);
-  try (ateb_diff);
-  try (ateb_errs_same).
-
 Lemma appr_events'_size_works : forall G p e ev_out i evs,
   appr_events' G p e ev_out i = res evs ->
   appr_events_size G e = res (List.length evs).
 Proof.
-  intros G.
-  induction e using (Evidence_subterm_path_Ind_special G); 
-  simpl in *; intros; intuition; ff with u, a;
-  ateb_simp; ff;
-  try (repeat (rewrite length_app in *); simpl in *; f_equal; lia).
+  intros G p e.
+  induction e as [ | n | p' par e' IH | e' IH | e' IH | e1 IH1 e2 IH2 ];
+  intros ev_out i evs Hev; simpl in Hev; simpl.
+  - (* mt: no events *)
+    inversion Hev; subst.
+    reflexivity.
+  - (* nonce: one check-nonce event *)
+    inversion Hev; subst.
+    reflexivity.
+  - (* asp *)
+    destruct par as [aid args].
+    destruct ((asp_comps G) ![ aid ]) as [dual | ] eqn:Hdual > [ | inversion Hev ].
+    destruct ((asp_types G) ![ aid ]) as [ [fwd attrs] | ] eqn:Hlk > [ | inversion Hev ].
+    destruct fwd as [ [n nlt] | [n nlt] | | [n nlt] isig ].
+    + (* REPLACE: single dual event *)
+      inversion Hev; subst.
+      reflexivity.
+    + (* WRAP: unwrap event, then the recursion *)
+      destruct (appr_events' G p e' (asp_evt p (asp_paramsC dual args) ev_out) (i + 1))
+        as [ev' | ] eqn:Hrec > [ | inversion Hev ].
+      eapply IH in Hrec.
+      inversion Hev; subst.
+      rewrite Hrec.
+      reflexivity.
+    + (* UNWRAP: stuck, no events *)
+      inversion Hev.
+    + (* EXTEND: split, dual, recursion, join *)
+      destruct (appr_events' G p e' e' (i + 2)) as [ev' | ] eqn:Hrec > [ | inversion Hev ].
+      eapply IH in Hrec.
+      inversion Hev; subst.
+      rewrite Hrec.
+      cbv beta iota delta [bind].
+      simpl.
+      f_equal.
+      repeat (rewrite length_app).
+      simpl.
+      lia.
+  - (* left_evt: stuck projection *)
+    inversion Hev.
+  - (* right_evt: stuck projection *)
+    inversion Hev.
+  - (* split: events of both sides, bracketed by split/join *)
+    destruct (equiv_EvidenceT G e1 (left_evt ev_out)) eqn:Hq1 > [ | inversion Hev ].
+    destruct (equiv_EvidenceT G e2 (right_evt ev_out)) eqn:Hq2 > [ | inversion Hev ].
+    (destruct (appr_events' G p e1 (left_evt ev_out) (S i)) as [evs1 | ] eqn:H1;
+     cbv beta iota delta [bind] in Hev) > [ | inversion Hev ].
+    (destruct (appr_events' G p e2 (right_evt ev_out) (i + 1 + Datatypes.length evs1))
+      as [evs2 | ] eqn:H2;
+     cbv beta iota delta [bind] in Hev) > [ | inversion Hev ].
+    eapply IH1 in H1.
+    eapply IH2 in H2.
+    inversion Hev; subst.
+    rewrite H1.
+    rewrite H2.
+    cbv beta iota delta [bind].
+    simpl.
+    f_equal.
+    repeat (rewrite length_app).
+    simpl.
+    lia.
 Qed.
-(* Opaque appr_events'. *)
 
-Definition appr_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat) 
+(* Appraise over the canonical (normalized) evidence structure, threading the
+   raw [e] as the output accumulator -- mirrors [appr_procedure]. *)
+Definition appr_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) (i : nat)
     : Result (list Ev) string :=
-  appr_events' G p e e i.
+  appr_events' G p (normalize_ev G e) e i.
 
 Lemma appr_events_size_works : forall G p e i evs,
   appr_events G p e i = res evs ->
-  appr_events_size G e = res (List.length evs).
+  appr_events_size G (normalize_ev G e) = res (List.length evs).
 Proof.
-  intros.
-  eapply appr_events'_size_works; ff.
+  intros G p e i evs H.
+  unfold appr_events in H.
+  eapply appr_events'_size_works.
+  exact H.
 Qed.
 
 Definition asp_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : EvidenceT) 
@@ -537,7 +489,7 @@ Definition asp_events `{DecEq ASP_ID} (G : GlobalContext) (p : Plc) (e : Evidenc
 
 Lemma asp_appr_events_size_works : forall G p e i evs,
   asp_events G p e APPR i = res evs ->
-  appr_events_size G e = res (List.length evs).
+  appr_events_size G (normalize_ev G e) = res (List.length evs).
 Proof.
   unfold asp_events.
   eapply appr_events_size_works.
@@ -587,14 +539,14 @@ Proof.
   find_eapply_lem_hyp app_eq_nil; ff.
 Qed.
 
-Ltac2 Notation "solve_true_last_app" :=
-  repeat (find_eapply_lem_hyp true_last_app_spec; try (break_or_hyp > 
-    [ ff; find_eapply_lem_hyp app_eq_nil; ff | ff ]));
-  repeat (rewrite length_app in *); ff; try lia.
-
-Ltac2 Notation "solve_true_last_none" :=
-  find_eapply_lem_hyp true_last_none_iff_nil; 
-  repeat (find_eapply_lem_hyp app_eq_nil); ff; try lia.
+Lemma true_last_app_singleton : forall A (l : list A) x,
+  true_last (l ++ [x]) = Some x.
+Proof.
+  intros A l x.
+  rewrite true_last_app.
+  - reflexivity.
+  - intros Hc; inversion Hc.
+Qed.
 
 Lemma appr_events'_deterministic_index : forall G p e ev_out i evs,
   appr_events' G p e ev_out i = res evs ->
@@ -602,13 +554,78 @@ Lemma appr_events'_deterministic_index : forall G p e ev_out i evs,
     true_last evs = Some v' ->
     ev v' = i + List.length evs - 1.
 Proof.
-  intros G.
-  induction e using (Evidence_subterm_path_Ind_special G); ff with u, a, l;
-  try (solve_true_last_app);
-  try (solve_true_last_none);
-  unpack_atebs; ff with a, l.
-  - find_eapply_lem_hyp IHe; ff with lia; lia.
-  - find_eapply_lem_hyp app_eq_nil; ff.
+  intros G p e.
+  induction e as [ | n | p' par e' IH | e' IH | e' IH | e1 IH1 e2 IH2 ];
+  intros ev_out i evs Hev v' Hlast; simpl in Hev.
+  - (* mt: no events, so no last event *)
+    inversion Hev; subst.
+    inversion Hlast.
+  - (* nonce: the single check-nonce event *)
+    inversion Hev; subst.
+    inversion Hlast; subst.
+    simpl.
+    lia.
+  - (* asp *)
+    destruct par as [aid args].
+    destruct ((asp_comps G) ![ aid ]) as [dual | ] eqn:Hdual > [ | inversion Hev ].
+    destruct ((asp_types G) ![ aid ]) as [ [fwd attrs] | ] eqn:Hlk > [ | inversion Hev ].
+    destruct fwd as [ [n nlt] | [n nlt] | | [n nlt] isig ].
+    + (* REPLACE: the single dual event *)
+      inversion Hev; subst.
+      inversion Hlast; subst.
+      simpl.
+      lia.
+    + (* WRAP: unwrap event followed by the recursion's events *)
+      destruct (appr_events' G p e' (asp_evt p (asp_paramsC dual args) ev_out) (i + 1))
+        as [ev'' | ] eqn:Hrec > [ | inversion Hev ].
+      inversion Hev; subst.
+      simpl in Hlast.
+      destruct (true_last ev'') as [x | ] eqn:Htl.
+      * (* the recursion is nonempty: its last event is the last overall *)
+        inversion Hlast; subst.
+        pose proof (IH _ _ _ Hrec v' Htl) as Hidx.
+        simpl.
+        lia.
+      * (* the recursion is empty: the unwrap event is last *)
+        eapply true_last_none_iff_nil in Htl; subst.
+        inversion Hlast; subst.
+        simpl.
+        lia.
+    + (* UNWRAP: stuck *)
+      inversion Hev.
+    + (* EXTEND: the closing join event is last, and carries its own index *)
+      destruct (appr_events' G p e' e' (i + 2)) as [ev'' | ] eqn:Hrec > [ | inversion Hev ].
+      inversion Hev; subst.
+      simpl in Hlast.
+      rewrite true_last_app_singleton in Hlast.
+      simpl in Hlast.
+      inversion Hlast; subst.
+      simpl.
+      repeat (rewrite length_app).
+      simpl.
+      lia.
+  - (* left_evt: stuck projection *)
+    inversion Hev.
+  - (* right_evt: stuck projection *)
+    inversion Hev.
+  - (* split: the closing join event is last, and carries its own index *)
+    destruct (equiv_EvidenceT G e1 (left_evt ev_out)) eqn:Hq1 > [ | inversion Hev ].
+    destruct (equiv_EvidenceT G e2 (right_evt ev_out)) eqn:Hq2 > [ | inversion Hev ].
+    (destruct (appr_events' G p e1 (left_evt ev_out) (S i)) as [evs1 | ] eqn:H1;
+     cbv beta iota delta [bind] in Hev) > [ | inversion Hev ].
+    (destruct (appr_events' G p e2 (right_evt ev_out) (i + 1 + Datatypes.length evs1))
+      as [evs2 | ] eqn:H2;
+     cbv beta iota delta [bind] in Hev) > [ | inversion Hev ].
+    inversion Hev; subst.
+    repeat (rewrite app_assoc in Hlast).
+    simpl in Hlast.
+    rewrite true_last_app_singleton in Hlast.
+    simpl in Hlast.
+    inversion Hlast; subst.
+    simpl.
+    repeat (rewrite length_app).
+    simpl.
+    lia.
 Qed.
 
 Theorem asp_events_deterministic_index : forall G p a e i evs,

@@ -694,6 +694,17 @@ Proof.
   ff.
 Qed.
 
+(** [et_size] is invariant under [normalize_ev]: it is defined over the canonical
+    form, so this is immediate from idempotence. *)
+Theorem et_size_normalize : forall G e,
+  et_size G e = et_size G (normalize_ev G e).
+Proof.
+  intros G e.
+  unfold et_size.
+  rewrite normalize_ev_idempotent.
+  reflexivity.
+Qed.
+
 Lemma equiv_preserves_denotation_size_rev : forall G e n,
   evt_stack_denotation G (normalize_ev G e) n ->
   evt_stack_denotation G e n.
