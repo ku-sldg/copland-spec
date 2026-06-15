@@ -491,3 +491,205 @@ Proof.
   exists (List.repeat passed_bs n').
   econstructor > [ apply List.repeat_length | exact Hn' ].
 Qed.
+
+(** * Denotation agrees with the executable size
+
+    Whenever an evidence type has a stack denotation, the executable
+    [et_size] computes exactly that number. (The converse is false: [et_size]
+    does not inspect the history under a [REPLACE]/[WRAP] head, while the
+    denotation requires it to be well-formed.) With the normalize-based
+    [et_size], each denotation rule corresponds to one [et_size] computation
+    law. *)
+Lemma evt_stack_denotation_et_size : forall G e n,
+  evt_stack_denotation G e n ->
+  et_size G e = res n.
+Proof.
+  intros G e n Hd.
+  induction Hd as
+    [
+    | m
+    | l r s1 s2 Hl IHl Hr IHr
+    | e' l r n' Hn Hdl IH
+    | e' l r n' Hn Hdr IH
+    | p aid attrs args e' sz n' nlt Hde IH Hl
+    | p aid attrs isig args e' n' n_ext n_extlt Hl Hde IH
+    | p aid attrs args e' sz n' nlt Hde IH Hl
+    | p p' aid aid' attrs attrs' args args' e' e'' sz nlt n_orig Hn Hu Hw Hc Hde IH
+    ].
+  - exact (et_size_mt G).
+  - exact (et_size_nonce G m).
+  - rewrite (et_size_split G l r).
+    rewrite IHl.
+    rewrite IHr.
+    reflexivity.
+  - (* left projection: the canonical form resolves to the split's left leg *)
+    unfold et_size.
+    rewrite (normalize_left_split G e' l r Hn).
+    pose proof (canon_split G e' l r Hn) as Hcs.
+    destruct Hcs as [Hcl Hcr].
+    unfold et_size in IH.
+    rewrite Hcl in IH.
+    exact IH.
+  - unfold et_size.
+    rewrite (normalize_right_split G e' l r Hn).
+    pose proof (canon_split G e' l r Hn) as Hcs.
+    destruct Hcs as [Hcl Hcr].
+    unfold et_size in IH.
+    rewrite Hcr in IH.
+    exact IH.
+  - exact (et_size_asp_replace G p aid args e' sz nlt attrs Hl).
+  - rewrite (et_size_asp_extend G p aid args e' n_ext n_extlt isig attrs Hl).
+    rewrite IH.
+    reflexivity.
+  - exact (et_size_asp_wrap G p aid args e' sz nlt attrs Hl).
+  - (* stuck-free UNWRAP: the matched pair cancels under normalization *)
+    unfold et_size.
+    ltac1:(simp normalize_ev).
+    rewrite Hn.
+    rewrite Hu.
+    rewrite Hw.
+    rewrite Hc.
+    destruct (DecEq.dec_eq aid aid) as [ _ | Hne ].
+    + ltac1:(cbn beta iota).
+      ltac1:(assert (Hne' : WRAP (exist _ sz nlt) <> UNWRAP) by discriminate).
+      pose proof (canon_asp_inner G e' p' aid' args' e'' (WRAP (exist _ sz nlt)) attrs Hn Hw Hne') as Hce.
+      unfold et_size in IH.
+      rewrite Hce in IH.
+      exact IH.
+    + ltac1:(exfalso; apply Hne; reflexivity).
+Qed.
+
+(** * Full value-level size safety (no [appr_free] restriction)
+
+    [evt_stack_denotation_et_size] closes the gap that previously confined
+    [typeof_appr_free_et_size_defined] to the appraisal-free fragment: the
+    APPR case is now derived from the typing itself. *)
+
+Lemma et_size_asp_defined : forall G p aid args e fwd attrs m,
+  (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) ->
+  fwd <> UNWRAP ->
+  et_size G e = res m ->
+  { n & et_size G (asp_evt p (asp_paramsC aid args) e) = res n }.
+Proof.
+  intros G p aid args e fwd attrs m Hl Hne Hsz.
+  destruct fwd as [ p0 | p0 | | p0 i0 ].
+  - destruct p0 as [n0 l0].
+    exists n0.
+    exact (et_size_asp_replace G p aid args e n0 l0 attrs Hl).
+  - destruct p0 as [n0 l0].
+    exists n0.
+    exact (et_size_asp_wrap G p aid args e n0 l0 attrs Hl).
+  - ltac1:(exfalso; apply Hne; reflexivity).
+  - destruct p0 as [n0 l0].
+    exists (n0 + m).
+    rewrite (et_size_asp_extend G p aid args e n0 l0 i0 attrs Hl).
+    rewrite Hsz.
+    reflexivity.
+Qed.
+
+(** Appraisal outputs of well-typed appraisals always have a computable size:
+    typing yields context support ([CSA_appraisal_sound]), hence denotability
+    of the input ([CSA_evt_stack_denotation]), preserved through APPR
+    ([typeof_appr_preserves_wf_EvT]) and pinned to [et_size]
+    ([evt_stack_denotation_et_size]). *)
+Lemma typeof_appr_et_size_defined : forall G p e et,
+  typeof G p e (asp APPR) et ->
+  { n & et_size G et = res n }.
+Proof.
+  intros G p e et Hty.
+  pose proof (CSA_appraisal_sound G p e et Hty) as Hcsa.
+  pose proof (CSA_evt_stack_denotation G e Hcsa) as Hde.
+  pose proof (evt_stack_denotation_impl_wf_EvT G e Hde) as Hwfe.
+  pose proof (typeof_appr_preserves_wf_EvT G p e et Hwfe Hty) as Hwfet.
+  pose proof (wf_EvT_impl_evt_stack_denotation G et Hwfet) as Hdet.
+  destruct Hdet as [n Hden].
+  exists n.
+  exact (evt_stack_denotation_et_size G et n Hden).
+Qed.
+
+(** Every well-typed phrase's output evidence type has a computable size —
+    no input-size hypothesis needed: the typing rules carry the denotation
+    premises that pin the sizes. *)
+Theorem typeof_et_size_defined : forall G t p e e',
+  typeof G p e t e' ->
+  { n & et_size G e' = res n }.
+Proof.
+  intros G t.
+  induction t as [ a | q t1 IH1 | t1 IH1 t2 IH2 | ep t1 IH1 t2 IH2 | ep t1 IH1 t2 IH2 ]; intros p e e' Hty.
+  - destruct a as [ | params | | | | q' ].
+    + (* NULL: no typing rule *)
+      ltac1:(inversion Hty).
+    + (* ASPC *)
+      destruct params as [aid args].
+      ltac1:(inversion Hty; subst;
+        (eapply et_size_asp_defined;
+         [ eassumption
+         | first [ discriminate | assumption ]
+         | eapply evt_stack_denotation_et_size; eassumption ])).
+    + (* SIG *)
+      ltac1:(inversion Hty; subst; unfold sig_params;
+        eapply et_size_asp_defined;
+        [ eassumption
+        | discriminate
+        | eapply evt_stack_denotation_et_size; eassumption ]).
+    + (* HSH *)
+      ltac1:(inversion Hty; subst; unfold hsh_params;
+        eapply et_size_asp_defined;
+        [ eassumption
+        | discriminate
+        | eapply evt_stack_denotation_et_size; eassumption ]).
+    + (* APPR *)
+      exact (typeof_appr_et_size_defined G p e e' Hty).
+    + (* ENC *)
+      ltac1:(inversion Hty; subst; unfold enc_params;
+        eapply et_size_asp_defined;
+        [ eassumption
+        | discriminate
+        | eapply evt_stack_denotation_et_size; eassumption ]).
+  - (* att *)
+    ltac1:(inversion Hty; subst; clear Hty).
+    ltac1:(match goal with
+    | [ H : typeof _ _ _ _ _ |- _ ] => exact (IH1 _ _ _ H)
+    end).
+  - (* lseq *)
+    ltac1:(inversion Hty; subst; clear Hty).
+    ltac1:(match goal with
+    | [ H : typeof _ _ _ _ _ |- _ ] => exact (IH2 _ _ _ H)
+    end).
+  - (* bseq *)
+    ltac1:(inversion Hty; subst; clear Hty).
+    ltac1:(match goal with
+    | [ H1 : typeof _ _ _ _ ?x, H2 : typeof _ _ _ _ ?y
+        |- { _ & et_size _ (split_evt ?x ?y) = res _ } ] =>
+      destruct (IH1 _ _ _ H1) as [n1 Hs1];
+      destruct (IH2 _ _ _ H2) as [n2 Hs2];
+      exists (n1 + n2);
+      rewrite et_size_split; rewrite Hs1; rewrite Hs2; reflexivity
+    end).
+  - (* bpar *)
+    ltac1:(inversion Hty; subst; clear Hty).
+    ltac1:(match goal with
+    | [ H1 : typeof _ _ _ _ ?x, H2 : typeof _ _ _ _ ?y
+        |- { _ & et_size _ (split_evt ?x ?y) = res _ } ] =>
+      destruct (IH1 _ _ _ H1) as [n1 Hs1];
+      destruct (IH2 _ _ _ H2) as [n2 Hs2];
+      exists (n1 + n2);
+      rewrite et_size_split; rewrite Hs1; rewrite Hs2; reflexivity
+    end).
+Qed.
+
+(** Full value-level safety, superseding the [appr_free]-restricted version:
+    the output type of ANY well-typed phrase admits a well-formed [Evidence]
+    value — no input well-formedness hypothesis is needed (the typing rules
+    carry the denotation premises that pin every size). *)
+Theorem typeof_preserves_wf_Evidence : forall G p e t e',
+  typeof G p e t e' ->
+  { ls' & wf_Evidence G (evc ls' e') }.
+Proof.
+  intros G p e t e' Hty.
+  destruct (typeof_et_size_defined G _ _ _ _ Hty) as [n Hsz].
+  exists (List.repeat passed_bs n).
+  econstructor.
+  - apply List.repeat_length.
+  - exact Hsz.
+Qed.

@@ -1631,6 +1631,65 @@ Inductive ContextSupportsAppr (G : GlobalContext) : EvidenceT -> Type :=
       ContextSupportsAppr G e.
 Local Hint Constructors ContextSupportsAppr : csa.
 
+(** Context support implies the evidence type is denotable: each CSA case
+    exposes the canonical form together with the type signatures its head
+    needs, which is exactly what the corresponding [evt_stack_denotation]
+    constructor consumes; the denotation of the canonical form transfers back
+    to the original evidence via [equiv_preserves_denotation_size_rev]. *)
+Lemma CSA_evt_stack_denotation : forall G e,
+  ContextSupportsAppr G e ->
+  { n & evt_stack_denotation G e n }.
+Proof.
+  intros G e Hcsa.
+  induction Hcsa as
+    [ e Hn
+    | e n attrs nlt Hn Hcn
+    | e p' aid args e' appr_id attrs attrs' nv Hn Hu Hc Hw Hcsa' IH
+    | e p' aid args e' appr_id fwd attrs attrs' n nlt Hn Ha Hc Hr Hfwd Hcsa' IH
+    | e p' aid args e' appr_id fwd attrs attrs' n nlt isig Hn Ha Hc Hx Hfwd Hcsa' IH
+    | e el er Hn Hl IHl Hr IHr ].
+  - exists 0.
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_mt.
+  - exists 1.
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_nonce.
+  - (* WRAP-headed: the arity is the wrap's output size *)
+    destruct nv as [nv_n nv_lt].
+    destruct IH as [n' IH].
+    exists nv_n.
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_asp_wrap.
+    + exact IH.
+    + exact Hw.
+  - destruct IH as [n' IH].
+    exists n.
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_asp_replace.
+    + exact IH.
+    + exact Hr.
+  - destruct IH as [n' IH].
+    exists (n + n').
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_asp_extend.
+    + exact Hx.
+    + exact IH.
+  - destruct IHl as [n1 IHl].
+    destruct IHr as [n2 IHr].
+    exists (n1 + n2).
+    eapply equiv_preserves_denotation_size_rev.
+    rewrite Hn.
+    eapply interp_split.
+    + exact IHl.
+    + exact IHr.
+Qed.
+
+
 Lemma CSA_asp_must_type_outer : forall G e a aid args,
   ContextSupportsAppr G (asp_evt a (asp_paramsC aid args) e) ->
   { '(fwd, attrs) | (asp_types G) ![ aid ] = Some (ev_arrow fwd attrs) }.
@@ -2287,6 +2346,67 @@ Proof.
       + ff.
   - subst e1' e2'.
     ff.
+Qed.
+
+(** The universal form: *any* two distinct primitive measurements, run in
+    the two orders, necessarily type to distinct evidence — the order of
+    operations is recorded in the evidence type itself. (The [Example] above
+    exhibits a concrete context; this theorem needs none.) *)
+Lemma typeof_aspc_shape : forall G p e ps e',
+  typeof G p e (asp (ASPC ps)) e' ->
+  e' = asp_evt p ps e.
+Proof.
+  intros G p e ps e' Hty.
+  destruct ps as [aid args].
+  ltac1:(inversion Hty; subst; reflexivity).
+Qed.
+
+Theorem evidence_non_commutative : forall G p e ps1 ps2 e1 e2,
+  ps1 <> ps2 ->
+  typeof G p e (lseq (asp (ASPC ps1)) (asp (ASPC ps2))) e1 ->
+  typeof G p e (lseq (asp (ASPC ps2)) (asp (ASPC ps1))) e2 ->
+  e1 <> e2.
+Proof.
+  intros G p e ps1 ps2 e1 e2 Hne Hty1 Hty2 Heq.
+  ltac1:(inversion Hty1; subst).
+  ltac1:(inversion Hty2; subst).
+  ltac1:(repeat match goal with
+  | [ H : typeof _ _ _ (asp (ASPC _)) _ |- _ ] =>
+    apply typeof_aspc_shape in H; subst
+  end).
+  ltac1:(congruence).
+Qed.
+
+Theorem evidence_non_commutative_bseq : forall G p e ps1 ps2 e1 e2 sp1 sp2,
+  ps1 <> ps2 ->
+  typeof G p e (bseq sp1 (asp (ASPC ps1)) (asp (ASPC ps2))) e1 ->
+  typeof G p e (bseq sp2 (asp (ASPC ps2)) (asp (ASPC ps1))) e2 ->
+  e1 <> e2.
+Proof.
+  intros G p e ps1 ps2 e1 e2 sp1 sp2 Hne Hty1 Hty2 Heq.
+  ltac1:(inversion Hty1; subst).
+  ltac1:(inversion Hty2; subst).
+  ltac1:(repeat match goal with
+  | [ H : typeof _ _ _ (asp (ASPC _)) _ |- _ ] =>
+    apply typeof_aspc_shape in H; subst
+  end).
+  ltac1:(congruence).
+Qed.
+
+Theorem evidence_non_commutative_bpar : forall G p e ps1 ps2 e1 e2 sp1 sp2,
+  ps1 <> ps2 ->
+  typeof G p e (bpar sp1 (asp (ASPC ps1)) (asp (ASPC ps2))) e1 ->
+  typeof G p e (bpar sp2 (asp (ASPC ps2)) (asp (ASPC ps1))) e2 ->
+  e1 <> e2.
+Proof.
+  intros G p e ps1 ps2 e1 e2 sp1 sp2 Hne Hty1 Hty2 Heq.
+  ltac1:(inversion Hty1; subst).
+  ltac1:(inversion Hty2; subst).
+  ltac1:(repeat match goal with
+  | [ H : typeof _ _ _ (asp (ASPC _)) _ |- _ ] =>
+    apply typeof_aspc_shape in H; subst
+  end).
+  ltac1:(congruence).
 Qed.
 
 Theorem typeof_appr_decidable : forall G p e,

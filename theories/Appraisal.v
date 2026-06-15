@@ -1,7 +1,7 @@
 From Equations Require Import Equations.
 From RocqCandy Require Import All.
 From CoplandSpec Require Import Term_Defs_Core TypeSys
-  Term_Defs_Core_Typeclasses Term_Defs.
+  Term_Defs_Core_Typeclasses Term_Defs TypeSys_Eval.
 From Stdlib Require Import Permutation.
 
 Definition AppraisalSummary := (Map ASP_ID (Map ASP_ID (EvidenceT * RawEv))).
@@ -238,3 +238,51 @@ Definition do_appraisal_summary (G : GlobalContext) (r : RawEv) (p : Plc) (et:Ev
     end
   | inright HtyFail => inleft (inright HtyFail)
   end.
+
+(** * Well-formed evidence admits correct appraisal summaries
+
+    The only irreducible premise is byte-level: the raw evidence [r] must be
+    well-formed at the appraised type ([wf_Evidence], i.e. its length matches
+    that type's size). Everything else is derived: the typing yields context
+    support ([CSA_appraisal_sound]), context support yields denotability of
+    the input ([CSA_evt_stack_denotation]), typing preserves it
+    ([typeof_appr_preserves_wf_EvT]), and the denotation pins the size that
+    [wf_Evidence] supplies ([evt_stack_denotation_et_size]). *)
+Theorem typed_appraisal_summary : forall G p e et r,
+  typeof G p e (asp APPR) et ->
+  wf_Evidence G (evc r et) ->
+  { s : AppraisalSummary | appr_summary_correct G r s }.
+Proof.
+  intros G p e et r Hty Hwf.
+  (* the appraised type is denotable *)
+  pose proof (CSA_appraisal_sound G p e et Hty) as Hcsa.
+  pose proof (CSA_evt_stack_denotation G e Hcsa) as Hde.
+  pose proof (evt_stack_denotation_impl_wf_EvT G e Hde) as Hwfe.
+  pose proof (typeof_appr_preserves_wf_EvT G p e et Hwfe Hty) as Hwfet.
+  pose proof (wf_EvT_impl_evt_stack_denotation G et Hwfet) as Hdet.
+  destruct Hdet as [n Hden].
+  (* its denotation is exactly the size [wf_Evidence] certifies for [r] *)
+  pose proof (evt_stack_denotation_et_size G et n Hden) as Hsz1.
+  pose proof (wf_Evidence_size G r et Hwf) as Hsz2.
+  rewrite Hsz1 in Hsz2.
+  ltac1:(injection Hsz2; intros Hn).
+  rewrite Hn in Hden.
+  exact (do_appraisal_summary_core G r p et (existT _ e Hty) Hden).
+Qed.
+
+(** Packaged from context support alone: CSA yields the appraised evidence
+    type together with a correct-summary producer for every well-formed raw
+    evidence vector of that type. *)
+Corollary CSA_appraisal_summary : forall G p e,
+  ContextSupportsAppr G e ->
+  { et & typeof G p e (asp APPR) et &
+         forall r, wf_Evidence G (evc r et) ->
+                   { s : AppraisalSummary | appr_summary_correct G r s } }.
+Proof.
+  intros G p e Hcsa.
+  destruct (well_typed_appraisable G e p Hcsa) as [et Hty].
+  exists et.
+  - exact Hty.
+  - intros r Hwf.
+    exact (typed_appraisal_summary G p e et r Hty Hwf).
+Qed.
